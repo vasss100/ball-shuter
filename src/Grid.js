@@ -1,10 +1,8 @@
-import * as PIXI from 'pixi.js';
-import { GRID_SIZE, CELL_SIZE, BOARD_OFFSET_X, BOARD_OFFSET_Y, COLORS } from './constants.js';
+import { GRID_SIZE, CELL_SIZE, BOARD_OFFSET_X, BOARD_OFFSET_Y } from './constants.js';
 
 export class Grid {
   constructor() {
     this.cells = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(null));
-    this.container = new PIXI.Container();
   }
 
   get x() { return BOARD_OFFSET_X; }

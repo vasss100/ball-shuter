@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import Matter from 'matter-js';
 import { Grid } from './Grid.js';
 import { Piece } from './Piece.js';
 import {
@@ -8,8 +9,10 @@ import {
 } from './constants.js';
 
 export class Game {
-  constructor(app) {
+  constructor(app, engine, mouseConstraint) {
     this.app = app;
+    this.engine = engine;
+    this.mouseConstraint = mouseConstraint;
     this.state = 'menu';
     this.score = 0;
     this.highScore = parseInt(localStorage.getItem('blockblast_highscore') || '0');
@@ -24,14 +27,13 @@ export class Game {
     this.container = new PIXI.Container();
     app.stage.addChild(this.container);
 
+    this._loadTextures();
     this._createBackground();
     this._createGridUI();
     this._createUI();
     this._createMenu();
     this._createGameOver();
     this._setupInteraction();
-
-    this._loadTextures();
   }
 
   _loadTextures() {
@@ -45,8 +47,11 @@ export class Game {
     ];
 
     for (const name of assets) {
-      const tex = PIXI.Texture.from(name);
-      this.textures[name] = tex;
+      try {
+        this.textures[name] = PIXI.Texture.from(name);
+      } catch (e) {
+        // texture not available, will use fallback rendering
+      }
     }
   }
 
@@ -143,9 +148,7 @@ export class Game {
     this.restartBtn.cursor = 'pointer';
     this.restartBtn.on('pointerdown', () => {
       if (this.state === 'playing' && !this.isGameOver) {
-        if (confirm('Restart game? Your progress will be lost.')) {
-          this.startGame();
-        }
+        this.startGame();
       }
     });
     this.container.addChild(this.restartBtn);
@@ -278,12 +281,13 @@ export class Game {
 
   _onPointerDown(e) {
     if (this.state !== 'playing' || this.isGameOver) return;
+    if (this.isDragging) return;
 
     const pos = e.global;
 
     for (let i = this.pieces.length - 1; i >= 0; i--) {
       const piece = this.pieces[i];
-      if (piece.placed) continue;
+      if (!piece || piece.placed) continue;
       if (piece.hitTest(pos.x, pos.y)) {
         this.activePieceIndex = i;
         this.isDragging = true;
@@ -295,6 +299,7 @@ export class Game {
         this.piecesContainer.removeChild(piece.container);
         this.piecesContainer.addChild(piece.container);
 
+        if (piece.ghostContainer.parent) this.piecesContainer.removeChild(piece.ghostContainer);
         this.piecesContainer.addChild(piece.ghostContainer);
         break;
       }
@@ -309,6 +314,13 @@ export class Game {
 
     piece.container.x = pos.x - this.dragStart.x;
     piece.container.y = pos.y - this.dragStart.y;
+
+    if (piece.body) {
+      Matter.Body.setPosition(piece.body, {
+        x: piece.container.x + piece.visualWidth / 2,
+        y: piece.container.y + piece.visualHeight / 2,
+      });
+    }
 
     const cx = piece.container.x + piece.visualWidth / 2;
     const cy = piece.container.y + piece.visualHeight / 2;
@@ -330,6 +342,7 @@ export class Game {
     this.isDragging = false;
 
     piece.hideGhost();
+    piece.ghostContainer.removeChildren();
 
     const bestPos = piece.findBestGridPosition();
 
@@ -361,8 +374,11 @@ export class Game {
       }
 
       piece.placed = true;
+      if (piece.body && this.engine) {
+        Matter.Composite.remove(this.engine.world, piece.body);
+      }
       this.piecesContainer.removeChild(piece.container);
-      this.piecesContainer.removeChild(piece.ghostContainer);
+      if (piece.ghostContainer.parent) this.piecesContainer.removeChild(piece.ghostContainer);
 
       const placedCount = this.pieces.filter(p => p.placed).length;
       if (placedCount === this.pieces.length) {
@@ -396,20 +412,22 @@ export class Game {
 
     let frame = 0;
     const animate = () => {
+      if (this.isGameOver || this.state !== 'playing') {
+        this.gridContainer.removeChild(g);
+        return;
+      }
       frame++;
       g.alpha = frame / 10;
       if (frame >= 10) {
         this.gridContainer.removeChild(g);
         return;
       }
-      requestAnimationFrame(animate);
+      this.app.ticker.addOnce(animate);
     };
-    animate();
+    this.app.ticker.addOnce(animate);
   }
 
   animateLineClear(rows, cols) {
-    const flashColor = 0xffffff;
-
     const flashCells = [];
     for (const r of rows) {
       for (let c = 0; c < GRID_SIZE; c++) {
@@ -422,28 +440,33 @@ export class Game {
       }
     }
 
-    for (const { row, col } of flashCells) {
+    const flashGraphics = flashCells.map(({ row, col }) => {
       const g = new PIXI.Graphics();
       const x = BOARD_OFFSET_X + col * CELL_SIZE;
       const y = BOARD_OFFSET_Y + row * CELL_SIZE;
-      g.beginFill(flashColor);
+      g.beginFill(0xffffff);
       g.drawRoundedRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2, 4);
       g.endFill();
       g.alpha = 0;
       this.gridContainer.addChild(g);
+      return g;
+    });
 
-      let frame = 0;
-      const animate = () => {
-        frame++;
+    let frame = 0;
+    const animate = () => {
+      frame++;
+      for (const g of flashGraphics) {
         g.alpha = Math.sin(frame * 0.3) * 0.5 + 0.3;
-        if (frame > 15) {
+      }
+      if (frame > 15) {
+        for (const g of flashGraphics) {
           this.gridContainer.removeChild(g);
-          return;
         }
-        requestAnimationFrame(animate);
-      };
-      animate();
-    }
+        return;
+      }
+      this.app.ticker.addOnce(animate);
+    };
+    this.app.ticker.addOnce(animate);
   }
 
   _returnPieceToSlot(piece) {
@@ -502,12 +525,22 @@ export class Game {
 
   _getSlotPositions() {
     const totalPieceWidth = this.pieces.reduce((w, p) => w + p.visualWidth, 0);
-    const gap = Math.min(20, (GAME_WIDTH - totalPieceWidth) / (this.pieces.length + 1));
+    const availableWidth = GAME_WIDTH - 40;
+    const scale = totalPieceWidth > availableWidth ? availableWidth / totalPieceWidth : 1;
+
+    for (const piece of this.pieces) {
+      const s = totalPieceWidth > availableWidth ? availableWidth / totalPieceWidth : 1;
+      piece.container.scale.set(s);
+    }
+
+    const scaledWidths = this.pieces.map(p => p.visualWidth * scale);
+    const totalScaled = scaledWidths.reduce((a, b) => a + b, 0);
+    const gap = Math.min(15, (availableWidth - totalScaled) / (this.pieces.length + 1));
     const positions = [];
-    let currentX = gap;
+    let currentX = (GAME_WIDTH - totalScaled - gap * (this.pieces.length - 1)) / 2;
     for (let i = 0; i < this.pieces.length; i++) {
       positions.push({ x: currentX, y: PIECE_AREA_Y });
-      currentX += this.pieces[i].visualWidth + gap;
+      currentX += scaledWidths[i] + gap;
     }
     return positions;
   }
@@ -529,6 +562,9 @@ export class Game {
     for (let i = 0; i < this.pieces.length; i++) {
       this.pieces[i].setPosition(positions[i].x, positions[i].y);
       this.piecesContainer.addChild(this.pieces[i].container);
+      if (this.pieces[i].body && this.engine) {
+        Matter.Composite.add(this.engine.world, this.pieces[i].body);
+      }
     }
 
     if (!this.grid.hasAnyValidPlacement(this.pieces)) {
@@ -540,6 +576,8 @@ export class Game {
     this.state = 'playing';
     this.isGameOver = false;
     this.score = 0;
+    this.isDragging = false;
+    this.activePieceIndex = -1;
     this.menuContainer.visible = false;
     this.gameOverContainer.visible = false;
 
@@ -547,6 +585,12 @@ export class Game {
     this._updateGridVisual();
     this._updateScore();
 
+    if (this.engine) {
+      const bodies = Matter.Composite.allBodies(this.engine.world);
+      for (const b of bodies) {
+        if (b.pieceRef) Matter.Composite.remove(this.engine.world, b);
+      }
+    }
     this.pieces = [];
     this.piecesContainer.removeChildren();
     this.spawnPieces();
@@ -569,11 +613,6 @@ export class Game {
   _updateScore() {
     this.scoreText.text = `Score: ${this.score}`;
     this.scoreText.x = BOARD_OFFSET_X;
-  }
-
-  _updateFillCount() {
-    const filled = this.grid.countFilledCells();
-    const total = GRID_SIZE * GRID_SIZE;
   }
 
   restart() {

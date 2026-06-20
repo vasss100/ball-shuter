@@ -1,6 +1,6 @@
 import * as PIXI from 'pixi.js';
 import Matter from 'matter-js';
-import { CELL_SIZE, COLORS, PIECE_AREA_Y, GAME_WIDTH } from './constants.js';
+import { CELL_SIZE, COLORS } from './constants.js';
 
 const BLOCK_TEXTURE_KEYS = [
   '1-removed-bg.png',
@@ -30,7 +30,7 @@ export class Piece {
 
     this._createGraphics();
     this._createGhost();
-    this._createPhysics();
+    this._createBody();
   }
 
   _getBlockTexture() {
@@ -89,38 +89,26 @@ export class Piece {
     }
   }
 
-  _createPhysics() {
+  _createBody() {
     const vertices = [];
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
         if (!this.shapeMatrix[r][c]) continue;
+        const hw = CELL_SIZE / 2 - 2;
         const cx = c * CELL_SIZE + CELL_SIZE / 2;
         const cy = r * CELL_SIZE + CELL_SIZE / 2;
-        const half = CELL_SIZE / 2 - 2;
-        vertices.push(
-          { x: cx - half, y: cy - half },
-          { x: cx + half, y: cy - half },
-          { x: cx + half, y: cy + half },
-          { x: cx - half, y: cy + half },
-        );
+        vertices.push({ x: cx - hw, y: cy - hw }, { x: cx + hw, y: cy - hw },
+                      { x: cx + hw, y: cy + hw }, { x: cx - hw, y: cy + hw });
       }
     }
-
     const centroid = Matter.Vertices.centre(vertices);
     const bodyVerts = vertices.map(v => ({ x: v.x - centroid.x, y: v.y - centroid.y }));
-
-    this.body = Matter.Bodies.fromVertices(0, 0, bodyVerts, {
-      isStatic: false,
-      restitution: 0.1,
-      friction: 0.1,
-      frictionAir: 0.05,
-      label: 'piece',
-    });
-
-    if (this.body) {
-      this.body.pieceRef = this;
-      this.body.isSensor = true;
-    }
+    try {
+      this.body = Matter.Bodies.fromVertices(0, 0, bodyVerts, {
+        isStatic: false, restitution: 0.1, friction: 0.1, frictionAir: 0.05,
+      });
+      if (this.body) { this.body.pieceRef = this; this.body.isSensor = true; }
+    } catch (e) { this.body = null; }
   }
 
   setPosition(x, y) {

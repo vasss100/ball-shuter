@@ -14,15 +14,28 @@ const app = new PIXI.Application({
 
 document.body.appendChild(app.view);
 
-const engine = Matter.Engine.create({
-  gravity: { x: 0, y: 0 },
+const engine = Matter.Engine.create({ gravity: { x: 0, y: 0 } });
+const mouseConstraint = Matter.MouseConstraint.create(engine, {
+  constraint: { stiffness: 0.2, render: { visible: false } },
 });
 
-const game = new Game(app);
+let game;
 
 app.ticker.add(() => {
+  if (!game) return;
   Matter.Engine.update(engine, 1000 / 60);
+
+  const bodies = Matter.Composite.allBodies(engine.world);
+  for (const body of bodies) {
+    if (body.label === 'piece' && body.pieceRef && !body.pieceRef.dragging) {
+      const piece = body.pieceRef;
+      piece.container.x = body.position.x - piece.visualWidth / 2;
+      piece.container.y = body.position.y - piece.visualHeight / 2;
+    }
+  }
 });
+
+game = new Game(app, engine, mouseConstraint);
 
 window.addEventListener('resize', () => {
   const scaleX = window.innerWidth / GAME_WIDTH;
