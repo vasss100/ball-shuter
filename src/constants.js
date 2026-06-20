@@ -7,14 +7,18 @@ export const PIECE_AREA_Y = 600;
 
 export const COLORS = {
   background: 0x1a1a2e,
-  cellEmpty: 0x2a2a4e,
-  cellEmptyBorder: 0x3a3a5e,
+  boardBg: 0x16213e,
+  cellEmpty: 0x2d3a6b,
+  cellEmptyBorder: 0x3d4a7b,
   cellOccupied: [0x4FC3F7, 0x81C784, 0xFF8A65, 0xBA68C8, 0xF06292, 0xFFD54F, 0x4DD0E1, 0xAED581],
-  gridBorder: 0x5a5a8e,
+  gridBorder: 0x7a8ac0,
+  gridLine: 0x3d4a7b,
   ghost: 0xffffff,
-  uiPanel: 0x16162a,
+  uiPanel: 0x0f3460,
   uiText: 0xffffff,
   uiAccent: 0x4FC3F7,
+  uiAccentDark: 0x0d47a1,
+  titleColor: 0x4FC3F7,
 };
 
 export const GAME_WIDTH = 640;

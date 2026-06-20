@@ -24,17 +24,17 @@ export class Game {
     this.container = new PIXI.Container();
     app.stage.addChild(this.container);
 
-    this._loadAssets(() => {
-      this._createBackground();
-      this._createGridUI();
-      this._createUI();
-      this._createMenu();
-      this._createGameOver();
-      this._setupInteraction();
-    });
+    this._createBackground();
+    this._createGridUI();
+    this._createUI();
+    this._createMenu();
+    this._createGameOver();
+    this._setupInteraction();
+
+    this._loadTextures();
   }
 
-  _loadAssets(callback) {
+  _loadTextures() {
     const assets = [
       'grid_8x8_board-removed-bg.png',
       'ui_play_button-removed-bg.png',
@@ -44,20 +44,9 @@ export class Game {
       'IMG_20260620_222522-removed-bg.png',
     ];
 
-    let loaded = 0;
-    const onLoad = () => {
-      loaded++;
-      if (loaded === assets.length) callback();
-    };
-
     for (const name of assets) {
       const tex = PIXI.Texture.from(name);
       this.textures[name] = tex;
-      if (tex.valid) {
-        onLoad();
-      } else {
-        tex.on('update', onLoad);
-      }
     }
   }
 
@@ -84,6 +73,16 @@ export class Game {
     this.gridContainer = new PIXI.Container();
     this.container.addChild(this.gridContainer);
 
+    const boardBg = new PIXI.Graphics();
+    boardBg.beginFill(COLORS.boardBg, 0.8);
+    boardBg.drawRoundedRect(
+      BOARD_OFFSET_X - 4, BOARD_OFFSET_Y - 4,
+      GRID_SIZE * CELL_SIZE + 8, GRID_SIZE * CELL_SIZE + 8,
+      8
+    );
+    boardBg.endFill();
+    this.gridContainer.addChild(boardBg);
+
     this.cellGraphics = [];
     for (let r = 0; r < GRID_SIZE; r++) {
       this.cellGraphics[r] = [];
@@ -91,8 +90,9 @@ export class Game {
         const g = new PIXI.Graphics();
         const x = BOARD_OFFSET_X + c * CELL_SIZE;
         const y = BOARD_OFFSET_Y + r * CELL_SIZE;
-        g.beginFill(COLORS.cellEmpty, 0.5);
-        g.drawRoundedRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2, 4);
+        g.lineStyle(1, COLORS.gridLine, 0.4);
+        g.beginFill(COLORS.cellEmpty);
+        g.drawRoundedRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2, 3);
         g.endFill();
         this.gridContainer.addChild(g);
         this.cellGraphics[r][c] = g;
@@ -100,7 +100,7 @@ export class Game {
     }
 
     const border = new PIXI.Graphics();
-    border.lineStyle(2, COLORS.gridBorder, 0.6);
+    border.lineStyle(2, COLORS.gridBorder, 0.8);
     border.drawRoundedRect(
       BOARD_OFFSET_X, BOARD_OFFSET_Y,
       GRID_SIZE * CELL_SIZE, GRID_SIZE * CELL_SIZE,
@@ -113,8 +113,10 @@ export class Game {
     this.scoreText = new PIXI.Text('Score: 0', {
       fontFamily: 'Arial, sans-serif',
       fontSize: 22,
-      fill: COLORS.uiText,
+      fill: COLORS.titleColor,
       fontWeight: 'bold',
+      stroke: 0x000000,
+      strokeThickness: 2,
     });
     this.scoreText.x = BOARD_OFFSET_X;
     this.scoreText.y = 15;
@@ -166,8 +168,10 @@ export class Game {
     const title = new PIXI.Text('BLOCK BLAST', {
       fontFamily: 'Arial, sans-serif',
       fontSize: 48,
-      fill: COLORS.uiAccent,
+      fill: COLORS.titleColor,
       fontWeight: 'bold',
+      stroke: 0x000000,
+      strokeThickness: 4,
     });
     title.anchor.set(0.5);
     title.x = GAME_WIDTH / 2;
@@ -220,6 +224,8 @@ export class Game {
       fontSize: 42,
       fill: 0xff4444,
       fontWeight: 'bold',
+      stroke: 0x000000,
+      strokeThickness: 4,
     });
     goTitle.anchor.set(0.5);
     goTitle.x = GAME_WIDTH / 2;
@@ -485,8 +491,9 @@ export class Game {
         } else {
           const x = BOARD_OFFSET_X + c * CELL_SIZE;
           const y = BOARD_OFFSET_Y + r * CELL_SIZE;
-          g.beginFill(COLORS.cellEmpty, 0.5);
-          g.drawRoundedRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2, 4);
+          g.lineStyle(1, COLORS.gridLine, 0.4);
+          g.beginFill(COLORS.cellEmpty);
+          g.drawRoundedRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2, 3);
           g.endFill();
         }
       }
