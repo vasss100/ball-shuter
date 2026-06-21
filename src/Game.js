@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js';
 import { Grid } from './Grid.js';
 import { Piece } from './Piece.js';
 import { Effects } from './Effects.js';
+import { HomePage } from './HomePage.js';
 import {
   GRID_SIZE, CELL_SIZE, BOARD_OFFSET_X, BOARD_OFFSET_Y,
   PIECE_AREA_Y, COLORS, GAME_WIDTH, GAME_HEIGHT,
@@ -34,7 +35,14 @@ export class Game {
     this._createBackground();
     this._createGridUI();
     this._createUI();
-    this._createMenu();
+    this._homePage = new HomePage(app, this.container, {
+      onPlay: () => this.startGame(),
+      onSettings: () => console.log('Settings'),
+      onDaily: () => console.log('Daily Challenge'),
+      onAdventure: () => console.log('Adventure'),
+      onTab: (label) => console.log(`Tab: ${label}`),
+    });
+    this._homePage.updateHighScore(this.highScore);
     this._createGameOver();
     this._setupInteraction();
     this._applyTheme();
@@ -146,292 +154,7 @@ export class Game {
   }
 
   _createMenu() {
-    this.menuContainer = new PIXI.Container();
-    this.menuContainer.visible = true;
-    this.container.addChild(this.menuContainer);
-    this._logoTime = 0;
-
-    const ACCENT = 0xFFCC00;
-    const FONT = 'Outfit, Arial, sans-serif';
-
-    const bg = new PIXI.Graphics();
-    const gradColors = [0x1E1040, 0x1C0E38, 0x1A0C30, 0x170A28, 0x130820, 0x0F0618];
-    const bandH = Math.ceil(GAME_HEIGHT / gradColors.length);
-    for (let i = 0; i < gradColors.length; i++) {
-      bg.beginFill(gradColors[i]);
-      bg.drawRect(0, i * bandH, GAME_WIDTH, bandH + 2);
-      bg.endFill();
-    }
-    this.menuContainer.addChild(bg);
-
-    for (let i = 0; i < 50; i++) {
-      const dot = new PIXI.Graphics();
-      dot.beginFill(0xFFFFFF, 0.08 + Math.random() * 0.12);
-      dot.drawCircle(0, 0, 1 + Math.random() * 2);
-      dot.endFill();
-      dot.x = Math.random() * GAME_WIDTH;
-      dot.y = Math.random() * GAME_HEIGHT * 0.6;
-      this.menuContainer.addChild(dot);
-    }
-
-    const headerBg = new PIXI.Graphics();
-    headerBg.beginFill(0x000000, 0.35);
-    headerBg.drawRoundedRect(10, 8, GAME_WIDTH - 20, 52, 16);
-    headerBg.endFill();
-    this.menuContainer.addChild(headerBg);
-
-    const coin = new PIXI.Graphics();
-    coin.beginFill(0xFFD700);
-    coin.drawCircle(0, 0, 10);
-    coin.endFill();
-    coin.beginFill(0xFFA500, 0.3);
-    coin.drawCircle(0, 0, 6);
-    coin.endFill();
-    coin.x = 30;
-    coin.y = 34;
-    this.menuContainer.addChild(coin);
-
-    const coinTxt = new PIXI.Text('1250', {
-      fontFamily: FONT, fontSize: 15, fill: 0xFFFFFF, fontWeight: 'bold',
-    });
-    coinTxt.x = 46;
-    coinTxt.y = 22;
-    this.menuContainer.addChild(coinTxt);
-
-    const diam = new PIXI.Graphics();
-    diam.beginFill(0x00BFFF);
-    diam.moveTo(0, -9); diam.lineTo(7, 0); diam.lineTo(0, 9); diam.lineTo(-7, 0); diam.closePath();
-    diam.endFill();
-    diam.beginFill(0xFFFFFF, 0.25);
-    diam.moveTo(0, -9); diam.lineTo(3, -3); diam.lineTo(0, 0); diam.closePath();
-    diam.endFill();
-    diam.x = 115;
-    diam.y = 34;
-    this.menuContainer.addChild(diam);
-
-    const diamTxt = new PIXI.Text('85', {
-      fontFamily: FONT, fontSize: 15, fill: 0xFFFFFF, fontWeight: 'bold',
-    });
-    diamTxt.x = 130;
-    diamTxt.y = 22;
-    this.menuContainer.addChild(diamTxt);
-
-    const gear = new PIXI.Text('⚙', {
-      fontFamily: 'Arial, sans-serif', fontSize: 20, fill: 0x555555,
-    });
-    gear.x = GAME_WIDTH - 34;
-    gear.y = 24;
-    gear.eventMode = 'static';
-    gear.cursor = 'pointer';
-    this.menuContainer.addChild(gear);
-
-    const glow = new PIXI.Graphics();
-    for (let i = 3; i >= 0; i--) {
-      glow.beginFill(ACCENT, 0.03 - i * 0.005);
-      glow.drawCircle(GAME_WIDTH / 2, 120, 100 + i * 20);
-      glow.endFill();
-    }
-    this.menuContainer.addChild(glow);
-
-    const logo = new PIXI.Text('BLOCK BLAST', {
-      fontFamily: FONT, fontSize: 54, fill: ACCENT, fontWeight: '900',
-      stroke: 0x000000, strokeThickness: 5,
-    });
-    logo.anchor.set(0.5);
-    logo.x = GAME_WIDTH / 2;
-    this._logoBaseY = 118;
-    logo.y = this._logoBaseY;
-    this.menuContainer.addChild(logo);
-    this._menuLogo = logo;
-
-    const sub = new PIXI.Text('500 LEVELS', {
-      fontFamily: FONT, fontSize: 12, fill: 0x999999,
-    });
-    sub.anchor.set(0.5);
-    sub.x = GAME_WIDTH / 2;
-    sub.y = 152;
-    this.menuContainer.addChild(sub);
-
-    const hsPanel = new PIXI.Graphics();
-    hsPanel.beginFill(0x000000, 0.2);
-    hsPanel.drawRoundedRect(GAME_WIDTH / 2 - 100, 185, 200, 50, 12);
-    hsPanel.endFill();
-    this.menuContainer.addChild(hsPanel);
-
-    const crown = new PIXI.Text('👑', {
-      fontFamily: 'Arial, sans-serif', fontSize: 16,
-    });
-    crown.anchor.set(0.5);
-    crown.x = GAME_WIDTH / 2 - 70;
-    crown.y = 203;
-    this.menuContainer.addChild(crown);
-
-    const hsLbl = new PIXI.Text('BEST SCORE', {
-      fontFamily: FONT, fontSize: 10, fill: 0x888888,
-    });
-    hsLbl.anchor.set(0.5);
-    hsLbl.x = GAME_WIDTH / 2 + 10;
-    hsLbl.y = 196;
-    this.menuContainer.addChild(hsLbl);
-
-    const hsVal = new PIXI.Text(`${this.highScore}`, {
-      fontFamily: FONT, fontSize: 22, fill: 0xFFFFFF, fontWeight: 'bold',
-    });
-    hsVal.anchor.set(0.5);
-    hsVal.x = GAME_WIDTH / 2 + 10;
-    hsVal.y = 220;
-    this.menuContainer.addChild(hsVal);
-
-    const playShadow = new PIXI.Graphics();
-    playShadow.beginFill(0xC32700, 0.4);
-    playShadow.drawRoundedRect(0, 0, 300, 64, 28);
-    playShadow.endFill();
-    playShadow.x = GAME_WIDTH / 2 - 150;
-    playShadow.y = 272;
-    this.menuContainer.addChild(playShadow);
-
-    this.playBtn = new PIXI.Graphics();
-    this.playBtn.beginFill(0xFF3B30);
-    this.playBtn.drawRoundedRect(0, 0, 300, 64, 28);
-    this.playBtn.endFill();
-    this.playBtn.beginFill(0xFF8C00, 0.15);
-    this.playBtn.drawRect(4, 4, 292, 28);
-    this.playBtn.endFill();
-    this.playBtn.x = GAME_WIDTH / 2 - 150;
-    this.playBtn.y = 268;
-    this.playBtn.eventMode = 'static';
-    this.playBtn.cursor = 'pointer';
-    this.menuContainer.addChild(this.playBtn);
-
-    const playTxt = new PIXI.Text('PLAY', {
-      fontFamily: FONT, fontSize: 32, fill: 0xFFFFFF, fontWeight: 'bold',
-    });
-    playTxt.anchor.set(0.5);
-    playTxt.x = GAME_WIDTH / 2;
-    playTxt.y = 300;
-    this.menuContainer.addChild(playTxt);
-
-    this.playBtn.on('pointerdown', () => this.startGame());
-
-    const dailyBtn = new PIXI.Graphics();
-    dailyBtn.beginFill(0x007AFF);
-    dailyBtn.drawRoundedRect(0, 0, GAME_WIDTH - 60, 52, 14);
-    dailyBtn.endFill();
-    dailyBtn.x = 30;
-    dailyBtn.y = 358;
-    dailyBtn.eventMode = 'static';
-    dailyBtn.cursor = 'pointer';
-    this.menuContainer.addChild(dailyBtn);
-
-    const starIcon = new PIXI.Text('★', {
-      fontFamily: 'Arial, sans-serif', fontSize: 18, fill: 0xFFFFFF,
-    });
-    starIcon.anchor.set(0.5);
-    starIcon.x = 62;
-    starIcon.y = 384;
-    this.menuContainer.addChild(starIcon);
-
-    const dailyTxt = new PIXI.Text('DAILY CHALLENGE', {
-      fontFamily: FONT, fontSize: 16, fill: 0xFFFFFF, fontWeight: 'bold',
-    });
-    dailyTxt.anchor.set(0.5);
-    dailyTxt.x = GAME_WIDTH / 2;
-    dailyTxt.y = 384;
-    this.menuContainer.addChild(dailyTxt);
-
-    const badge = new PIXI.Graphics();
-    badge.beginFill(0xFF3B30);
-    badge.drawRoundedRect(0, 0, 40, 20, 10);
-    badge.endFill();
-    badge.x = GAME_WIDTH - 80;
-    badge.y = 374;
-    this.menuContainer.addChild(badge);
-
-    const badgeTxt = new PIXI.Text('NEW', {
-      fontFamily: FONT, fontSize: 10, fill: 0xFFFFFF, fontWeight: 'bold',
-    });
-    badgeTxt.anchor.set(0.5);
-    badgeTxt.x = 20;
-    badgeTxt.y = 10;
-    badge.addChild(badgeTxt);
-
-    const advBtn = new PIXI.Graphics();
-    advBtn.beginFill(0x34C759);
-    advBtn.drawRoundedRect(0, 0, GAME_WIDTH - 60, 52, 14);
-    advBtn.endFill();
-    advBtn.x = 30;
-    advBtn.y = 425;
-    advBtn.eventMode = 'static';
-    advBtn.cursor = 'pointer';
-    this.menuContainer.addChild(advBtn);
-
-    const advIcon = new PIXI.Text('🗺', {
-      fontFamily: 'Arial, sans-serif', fontSize: 18,
-    });
-    advIcon.anchor.set(0.5);
-    advIcon.x = 62;
-    advIcon.y = 451;
-    this.menuContainer.addChild(advIcon);
-
-    const advTxt = new PIXI.Text('ADVENTURE', {
-      fontFamily: FONT, fontSize: 16, fill: 0xFFFFFF, fontWeight: 'bold',
-    });
-    advTxt.anchor.set(0.5);
-    advTxt.x = GAME_WIDTH / 2;
-    advTxt.y = 451;
-    this.menuContainer.addChild(advTxt);
-
-    const footerY = GAME_HEIGHT - 60;
-    const footerBg = new PIXI.Graphics();
-    footerBg.beginFill(0x0A0418, 0.97);
-    footerBg.drawRect(0, footerY, GAME_WIDTH, 60);
-    footerBg.endFill();
-    footerBg.beginFill(0x3A2060, 0.3);
-    footerBg.drawRect(0, footerY, GAME_WIDTH, 1);
-    footerBg.endFill();
-    this.menuContainer.addChild(footerBg);
-
-    const tabs = [
-      { label: 'Shop', icon: '🛒', active: false },
-      { label: 'Leaderboard', icon: '🏆', active: true },
-      { label: 'Home', icon: '🏠', active: false },
-      { label: 'Skins', icon: '🎨', active: false },
-      { label: 'Events', icon: '🎁', active: false },
-    ];
-    const tw = GAME_WIDTH / tabs.length;
-
-    tabs.forEach((tab, i) => {
-      const c = new PIXI.Container();
-      c.x = i * tw;
-      c.y = footerY + 5;
-      const color = tab.active ? ACCENT : 0x555555;
-
-      const ic = new PIXI.Text(tab.icon, {
-        fontFamily: 'Arial, sans-serif', fontSize: 18, fill: color,
-      });
-      ic.anchor.set(0.5);
-      ic.x = tw / 2;
-      ic.y = 14;
-      c.addChild(ic);
-
-      const lb = new PIXI.Text(tab.label, {
-        fontFamily: FONT, fontSize: 10, fill: color,
-      });
-      lb.anchor.set(0.5);
-      lb.x = tw / 2;
-      lb.y = 35;
-      c.addChild(lb);
-
-      if (tab.active) {
-        const dot = new PIXI.Graphics();
-        dot.beginFill(ACCENT);
-        dot.drawRoundedRect(tw / 2 - 10, 46, 20, 3, 2);
-        dot.endFill();
-        c.addChild(dot);
-      }
-
-      this.menuContainer.addChild(c);
-    });
+    this._homePage.show();
   }
 
   _createGameOver() {
@@ -963,7 +686,7 @@ export class Game {
     this.level = Math.min(this.level, MAX_LEVEL);
     this.isDragging = false;
     this.activePieceIndex = -1;
-    this.menuContainer.visible = false;
+    this._homePage.hide();
     this.gameOverContainer.visible = false;
     this.effects.clear();
 
@@ -1010,10 +733,7 @@ export class Game {
 
   update(delta) {
     this.effects.update(delta);
-    if (this._menuLogo) {
-      this._logoTime += delta * 0.03;
-      this._menuLogo.y = this._logoBaseY + Math.sin(this._logoTime) * 4;
-    }
+    this._homePage.update(delta);
   }
 
   restart() {
