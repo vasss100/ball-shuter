@@ -16,8 +16,8 @@ export class Game {
     this.state = 'menu';
     this.score = 0;
     this.level = 1;
-    this.highScore = parseInt(localStorage.getItem('blockblast_highscore') || '0');
-    this.highLevel = parseInt(localStorage.getItem('blockblast_highlevel') || '1');
+    this.highScore = parseInt(localStorage.getItem('blockblast_highscore') || '0', 10);
+    this.highLevel = parseInt(localStorage.getItem('blockblast_highlevel') || '1', 10);
     this.grid = new Grid();
     this.pieces = [];
     this.activePieceIndex = -1;
@@ -25,6 +25,7 @@ export class Game {
     this.isDragging = false;
     this.isGameOver = false;
     this.currentTheme = getTheme(1);
+    this._comboAnimating = false;
 
     this.container = new PIXI.Container();
     app.stage.addChild(this.container);
@@ -489,6 +490,9 @@ export class Game {
   }
 
   _showCombo(text, color) {
+    if (this._comboAnimating) return;
+    this._comboAnimating = true;
+
     this.comboText.text = text;
     this.comboText.style.fill = color;
     this.comboText.alpha = 1;
@@ -500,7 +504,10 @@ export class Game {
       this.comboText.scale.set(Math.min(1.2, 0.5 + frame * 0.07));
       if (frame > 50) {
         this.comboText.alpha -= 0.03;
-        if (this.comboText.alpha <= 0) return;
+        if (this.comboText.alpha <= 0) {
+          this._comboAnimating = false;
+          return;
+        }
       }
       this.app.ticker.addOnce(animate);
     };
@@ -564,6 +571,12 @@ export class Game {
 
     let frame = 0;
     const animate = () => {
+      if (this.isGameOver || this.state !== 'playing') {
+        for (const g of flashGraphics) {
+          if (g.parent) this.gridContainer.removeChild(g);
+        }
+        return;
+      }
       frame++;
       for (const g of flashGraphics) {
         g.alpha = Math.sin(frame * 0.3) * 0.5 + 0.3;
@@ -730,7 +743,8 @@ export class Game {
     this.state = 'playing';
     this.isGameOver = false;
     this.score = 0;
-    this.level = parseInt(localStorage.getItem('blockblast_startlevel') || '1');
+    this.level = parseInt(localStorage.getItem('blockblast_startlevel') || '1', 10);
+    if (isNaN(this.level) || this.level < 1) this.level = 1;
     this.level = Math.min(this.level, MAX_LEVEL);
     this.isDragging = false;
     this.activePieceIndex = -1;

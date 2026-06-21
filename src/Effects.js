@@ -13,6 +13,7 @@ export class Effects {
     this.shakeDecay = 0;
     this.rings = [];
     this.floatingTexts = [];
+    this._timeoutIds = [];
   }
 
   _createParticleGraphic(color, size) {
@@ -43,7 +44,7 @@ export class Effects {
 
   emitBurst(x, y, color, rings = 2) {
     for (let r = 0; r < rings; r++) {
-      setTimeout(() => {
+      const id = setTimeout(() => {
         const ring = new PIXI.Graphics();
         ring.x = x;
         ring.y = y;
@@ -56,6 +57,7 @@ export class Effects {
           alpha: 0.7,
         });
       }, r * 80);
+      this._timeoutIds.push(id);
     }
     this.emitParticles(x, y, color, 20, 5, 4, 35);
   }
@@ -104,12 +106,13 @@ export class Effects {
   levelUpCelebration() {
     const colors = [0x4FC3F7, 0x81C784, 0xFFD54F, 0xFF8A65, 0xBA68C8, 0xF06292, 0x4DD0E1];
     for (let i = 0; i < 8; i++) {
-      setTimeout(() => {
+      const id = setTimeout(() => {
         const color = colors[Math.floor(Math.random() * colors.length)];
         const x = Math.random() * GAME_WIDTH;
         const y = Math.random() * GAME_HEIGHT * 0.6;
         this.emitParticles(x, y, color, 25, 6, 4, 40);
       }, i * 150);
+      this._timeoutIds.push(id);
     }
     this.screenShake(6, 400);
   }
@@ -127,6 +130,8 @@ export class Effects {
       if (t.text.parent) this.container.removeChild(t.text);
       t.text.destroy();
     }
+    for (const id of this._timeoutIds) clearTimeout(id);
+    this._timeoutIds = [];
     this.particles = [];
     this.rings = [];
     this.floatingTexts = [];
