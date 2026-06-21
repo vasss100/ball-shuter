@@ -149,82 +149,314 @@ export class Game {
     this.menuContainer = new PIXI.Container();
     this.menuContainer.visible = true;
     this.container.addChild(this.menuContainer);
+    this._logoTime = 0;
 
-    const overlay = new PIXI.Graphics();
-    overlay.beginFill(0x000000, 0.75);
-    overlay.drawRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    overlay.endFill();
-    this.menuContainer.addChild(overlay);
+    const gradSteps = [
+      0x1A102F, 0x180D2A, 0x150B25, 0x120920, 0x0F071C, 0x0D0614,
+    ];
+    const bandH = Math.ceil(GAME_HEIGHT / gradSteps.length);
+    const bg = new PIXI.Graphics();
+    for (let i = 0; i < gradSteps.length; i++) {
+      bg.beginFill(gradSteps[i]);
+      bg.drawRect(0, i * bandH, GAME_WIDTH, bandH + 1);
+      bg.endFill();
+    }
+    this.menuContainer.addChild(bg);
 
-    this.menuTitle = new PIXI.Text('BLOCK BLAST', {
-      fontFamily: 'Arial, sans-serif', fontSize: 48,
-      fill: COLORS.titleColor, fontWeight: 'bold',
-      stroke: 0x000000, strokeThickness: 4,
+    const ACCENT = 0xFFCC00;
+    const FONT = 'Outfit, Arial, sans-serif';
+
+    const headerBg = new PIXI.Graphics();
+    headerBg.beginFill(0x000000, 0.3);
+    headerBg.drawRoundedRect(10, 8, GAME_WIDTH - 20, 56, 16);
+    headerBg.endFill();
+    this.menuContainer.addChild(headerBg);
+
+    const coin = new PIXI.Graphics();
+    coin.beginFill(0xFFD700);
+    coin.drawCircle(0, 0, 10);
+    coin.endFill();
+    coin.beginFill(0xDAA520, 0.4);
+    coin.drawCircle(0, 0, 7);
+    coin.endFill();
+    coin.x = 30;
+    coin.y = 36;
+    this.menuContainer.addChild(coin);
+
+    const coinTxt = new PIXI.Text('1250', {
+      fontFamily: FONT,
+      fontSize: 16,
+      fill: 0xFFFFFF,
+      fontWeight: 'bold',
     });
-    this.menuTitle.anchor.set(0.5);
-    this.menuTitle.x = GAME_WIDTH / 2;
-    this.menuTitle.y = GAME_HEIGHT / 2 - 120;
-    this.menuContainer.addChild(this.menuTitle);
+    coinTxt.x = 46;
+    coinTxt.y = 24;
+    this.menuContainer.addChild(coinTxt);
 
-    const subtitle = new PIXI.Text('500 LEVELS OF PUZZLE FUN', {
-      fontFamily: 'Arial, sans-serif', fontSize: 14,
-      fill: 0x888888, letterSpacing: 4,
+    const diam = new PIXI.Graphics();
+    diam.beginFill(0x00BFFF);
+    diam.moveTo(0, -9);
+    diam.lineTo(7, 0);
+    diam.lineTo(0, 9);
+    diam.lineTo(-7, 0);
+    diam.closePath();
+    diam.endFill();
+    diam.beginFill(0xFFFFFF, 0.3);
+    diam.moveTo(0, -9);
+    diam.lineTo(3, -3);
+    diam.lineTo(0, 0);
+    diam.closePath();
+    diam.endFill();
+    diam.x = 115;
+    diam.y = 36;
+    this.menuContainer.addChild(diam);
+
+    const diamTxt = new PIXI.Text('85', {
+      fontFamily: FONT,
+      fontSize: 16,
+      fill: 0xFFFFFF,
+      fontWeight: 'bold',
     });
-    subtitle.anchor.set(0.5);
-    subtitle.x = GAME_WIDTH / 2;
-    subtitle.y = GAME_HEIGHT / 2 - 80;
-    this.menuContainer.addChild(subtitle);
+    diamTxt.x = 130;
+    diamTxt.y = 24;
+    this.menuContainer.addChild(diamTxt);
 
-    const playBg = new PIXI.Graphics();
-    playBg.beginFill(COLORS.uiAccent, 0.15);
-    playBg.drawRoundedRect(GAME_WIDTH / 2 - 85, GAME_HEIGHT / 2 - 40, 170, 55, 14);
-    playBg.endFill();
-    this.menuContainer.addChild(playBg);
+    const gear = new PIXI.Text('⚙', {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: 22,
+      fill: 0x666666,
+    });
+    gear.x = GAME_WIDTH - 34;
+    gear.y = 25;
+    gear.eventMode = 'static';
+    gear.cursor = 'pointer';
+    this.menuContainer.addChild(gear);
+
+    const logo = new PIXI.Text('BLOCK BLAST', {
+      fontFamily: FONT,
+      fontSize: 52,
+      fill: ACCENT,
+      fontWeight: '900',
+      stroke: 0x000000,
+      strokeThickness: 5,
+    });
+    logo.anchor.set(0.5);
+    logo.x = GAME_WIDTH / 2;
+    this._logoBaseY = 130;
+    logo.y = this._logoBaseY;
+    this.menuContainer.addChild(logo);
+    this._menuLogo = logo;
+
+    const sub = new PIXI.Text('500 LEVELS', {
+      fontFamily: FONT,
+      fontSize: 13,
+      fill: 0x777777,
+    });
+    sub.anchor.set(0.5);
+    sub.x = GAME_WIDTH / 2;
+    sub.y = 168;
+    this.menuContainer.addChild(sub);
+
+    const crown = new PIXI.Text('👑', {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: 18,
+    });
+    crown.anchor.set(0.5);
+    crown.x = GAME_WIDTH / 2 - 90;
+    crown.y = 218;
+    this.menuContainer.addChild(crown);
+
+    const hsLbl = new PIXI.Text('BEST SCORE', {
+      fontFamily: FONT,
+      fontSize: 11,
+      fill: 0x666666,
+    });
+    hsLbl.anchor.set(0.5);
+    hsLbl.x = GAME_WIDTH / 2;
+    hsLbl.y = 213;
+    this.menuContainer.addChild(hsLbl);
+
+    const hsVal = new PIXI.Text(`${this.highScore}`, {
+      fontFamily: FONT,
+      fontSize: 26,
+      fill: 0xFFFFFF,
+      fontWeight: 'bold',
+    });
+    hsVal.anchor.set(0.5);
+    hsVal.x = GAME_WIDTH / 2;
+    hsVal.y = 235;
+    this.menuContainer.addChild(hsVal);
+
+    const playShadow = new PIXI.Graphics();
+    playShadow.beginFill(0xC32700, 0.5);
+    playShadow.drawRoundedRect(0, 0, 280, 60, 26);
+    playShadow.endFill();
+    playShadow.x = GAME_WIDTH / 2 - 140;
+    playShadow.y = 304;
+    this.menuContainer.addChild(playShadow);
 
     this.playBtn = new PIXI.Graphics();
-    this.playBtn.beginFill(COLORS.uiAccent);
-    this.playBtn.drawRoundedRect(-75, -22, 150, 44, 10);
+    this.playBtn.beginFill(0xFF3B30);
+    this.playBtn.drawRoundedRect(0, 0, 280, 60, 26);
     this.playBtn.endFill();
-    this.playBtn.x = GAME_WIDTH / 2;
-    this.playBtn.y = GAME_HEIGHT / 2 - 13;
+    this.playBtn.beginFill(0xFF9500, 0.2);
+    this.playBtn.drawRect(4, 4, 272, 28);
+    this.playBtn.endFill();
+    this.playBtn.x = GAME_WIDTH / 2 - 140;
+    this.playBtn.y = 300;
     this.playBtn.eventMode = 'static';
     this.playBtn.cursor = 'pointer';
     this.menuContainer.addChild(this.playBtn);
 
-    const playText = new PIXI.Text('PLAY', {
-      fontFamily: 'Arial, sans-serif', fontSize: 22,
-      fill: 0xffffff, fontWeight: 'bold',
+    const playTxt = new PIXI.Text('PLAY', {
+      fontFamily: FONT,
+      fontSize: 30,
+      fill: 0xFFFFFF,
+      fontWeight: 'bold',
     });
-    playText.anchor.set(0.5);
-    playText.x = 0;
-    playText.y = 0;
-    this.playBtn.addChild(playText);
+    playTxt.anchor.set(0.5);
+    playTxt.x = GAME_WIDTH / 2;
+    playTxt.y = 330;
+    this.menuContainer.addChild(playTxt);
 
     this.playBtn.on('pointerdown', () => this.startGame());
-    this.playBtn.on('pointerover', () => {
-      this.playBtn.tint = 0xcccccc;
-    });
-    this.playBtn.on('pointerout', () => {
-      this.playBtn.tint = 0xffffff;
-    });
 
-    const menuHighScore = new PIXI.Text(`High Score: ${this.highScore}`, {
-      fontFamily: 'Arial, sans-serif', fontSize: 14,
-      fill: 0x888888,
-    });
-    menuHighScore.anchor.set(0.5);
-    menuHighScore.x = GAME_WIDTH / 2;
-    menuHighScore.y = GAME_HEIGHT / 2 + 40;
-    this.menuContainer.addChild(menuHighScore);
+    const dailyBtn = new PIXI.Graphics();
+    dailyBtn.beginFill(0x007AFF);
+    dailyBtn.drawRoundedRect(0, 0, GAME_WIDTH - 80, 50, 14);
+    dailyBtn.endFill();
+    dailyBtn.x = 40;
+    dailyBtn.y = 380;
+    dailyBtn.eventMode = 'static';
+    dailyBtn.cursor = 'pointer';
+    this.menuContainer.addChild(dailyBtn);
 
-    const menuHighLevel = new PIXI.Text(`Highest Level: ${this.highLevel}`, {
-      fontFamily: 'Arial, sans-serif', fontSize: 14,
-      fill: 0x888888,
+    const starIcon = new PIXI.Text('★', {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: 18,
+      fill: 0xFFFFFF,
     });
-    menuHighLevel.anchor.set(0.5);
-    menuHighLevel.x = GAME_WIDTH / 2;
-    menuHighLevel.y = GAME_HEIGHT / 2 + 62;
-    this.menuContainer.addChild(menuHighLevel);
+    starIcon.anchor.set(0.5);
+    starIcon.x = 70;
+    starIcon.y = 405;
+    this.menuContainer.addChild(starIcon);
+
+    const dailyTxt = new PIXI.Text('DAILY CHALLENGE', {
+      fontFamily: FONT,
+      fontSize: 16,
+      fill: 0xFFFFFF,
+      fontWeight: 'bold',
+    });
+    dailyTxt.anchor.set(0.5);
+    dailyTxt.x = GAME_WIDTH / 2;
+    dailyTxt.y = 405;
+    this.menuContainer.addChild(dailyTxt);
+
+    const badge = new PIXI.Graphics();
+    badge.beginFill(0xFF3B30);
+    badge.drawRoundedRect(0, 0, 40, 20, 10);
+    badge.endFill();
+    badge.x = GAME_WIDTH - 100;
+    badge.y = 395;
+    this.menuContainer.addChild(badge);
+
+    const badgeTxt = new PIXI.Text('NEW', {
+      fontFamily: FONT,
+      fontSize: 10,
+      fill: 0xFFFFFF,
+      fontWeight: 'bold',
+    });
+    badgeTxt.anchor.set(0.5);
+    badgeTxt.x = 20;
+    badgeTxt.y = 10;
+    badge.addChild(badgeTxt);
+
+    const advBtn = new PIXI.Graphics();
+    advBtn.beginFill(0x34C759);
+    advBtn.drawRoundedRect(0, 0, GAME_WIDTH - 80, 50, 14);
+    advBtn.endFill();
+    advBtn.x = 40;
+    advBtn.y = 445;
+    advBtn.eventMode = 'static';
+    advBtn.cursor = 'pointer';
+    this.menuContainer.addChild(advBtn);
+
+    const advIcon = new PIXI.Text('🗺', {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: 18,
+    });
+    advIcon.anchor.set(0.5);
+    advIcon.x = 70;
+    advIcon.y = 470;
+    this.menuContainer.addChild(advIcon);
+
+    const advTxt = new PIXI.Text('ADVENTURE', {
+      fontFamily: FONT,
+      fontSize: 16,
+      fill: 0xFFFFFF,
+      fontWeight: 'bold',
+    });
+    advTxt.anchor.set(0.5);
+    advTxt.x = GAME_WIDTH / 2;
+    advTxt.y = 470;
+    this.menuContainer.addChild(advTxt);
+
+    const footerY = GAME_HEIGHT - 62;
+    const footerBg = new PIXI.Graphics();
+    footerBg.beginFill(0x0D0614, 0.95);
+    footerBg.drawRect(0, footerY, GAME_WIDTH, 62);
+    footerBg.endFill();
+    footerBg.beginFill(0x2a1a4a, 0.4);
+    footerBg.drawRect(0, footerY, GAME_WIDTH, 1);
+    footerBg.endFill();
+    this.menuContainer.addChild(footerBg);
+
+    const tabs = [
+      { label: 'Shop', icon: '🛒', active: false },
+      { label: 'Leaderboard', icon: '🏆', active: true },
+      { label: 'Home', icon: '🏠', active: false },
+      { label: 'Skins', icon: '🎨', active: false },
+      { label: 'Events', icon: '🎁', active: false },
+    ];
+    const tw = GAME_WIDTH / tabs.length;
+
+    tabs.forEach((tab, i) => {
+      const c = new PIXI.Container();
+      c.x = i * tw;
+      c.y = footerY + 6;
+
+      const color = tab.active ? ACCENT : 0x666666;
+
+      const ic = new PIXI.Text(tab.icon, {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: 20,
+        fill: color,
+      });
+      ic.anchor.set(0.5);
+      ic.x = tw / 2;
+      ic.y = 14;
+      c.addChild(ic);
+
+      const lb = new PIXI.Text(tab.label, {
+        fontFamily: FONT,
+        fontSize: 10,
+        fill: color,
+      });
+      lb.anchor.set(0.5);
+      lb.x = tw / 2;
+      lb.y = 36;
+      c.addChild(lb);
+
+      if (tab.active) {
+        const dot = new PIXI.Graphics();
+        dot.beginFill(ACCENT);
+        dot.drawRoundedRect(tw / 2 - 10, 48, 20, 3, 2);
+        dot.endFill();
+        c.addChild(dot);
+      }
+
+      this.menuContainer.addChild(c);
+    });
   }
 
   _createGameOver() {
@@ -505,7 +737,8 @@ export class Game {
       if (frame > 50) {
         this.comboText.alpha -= 0.03;
         if (this.comboText.alpha <= 0) {
-          this._comboAnimating = false;
+    this._comboAnimating = false;
+    this._logoTime = 0;
           return;
         }
       }
@@ -795,6 +1028,10 @@ export class Game {
 
   update(delta) {
     this.effects.update(delta);
+    if (this._menuLogo) {
+      this._logoTime += delta * 0.03;
+      this._menuLogo.y = this._logoBaseY + Math.sin(this._logoTime) * 4;
+    }
   }
 
   restart() {
