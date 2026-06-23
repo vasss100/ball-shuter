@@ -118,6 +118,27 @@ export class HomePage {
     this._coinText.x = GAME_WIDTH - 50;
     this._coinText.y = 24;
     this.container.addChild(this._coinText);
+
+    const settingsBg = new PIXI.Graphics();
+    settingsBg.beginFill(0x000000, 0.25);
+    settingsBg.drawCircle(0, 0, 16);
+    settingsBg.endFill();
+    settingsBg.x = GAME_WIDTH - 80;
+    settingsBg.y = 66;
+    this.container.addChild(settingsBg);
+
+    try {
+      const settings = PIXI.Sprite.from(UI_ASSETS.settings);
+      settings.anchor.set(0.5);
+      const sz = Math.max(settings.texture.orig.width, settings.texture.orig.height);
+      settings.scale.set(28 / sz);
+      settings.x = GAME_WIDTH - 80;
+      settings.y = 66;
+      settings.eventMode = 'static';
+      settings.cursor = 'pointer';
+      settings.on('pointerdown', () => this._showSettings());
+      this.container.addChild(settings);
+    } catch {}
   }
 
   _buildLogo() {
@@ -180,11 +201,8 @@ export class HomePage {
       } catch {}
     };
 
-    addIcon(UI_ASSETS.speaker, GAME_WIDTH / 2 - 30, () => {
+    addIcon(UI_ASSETS.speaker, GAME_WIDTH / 2, () => {
       this._soundOn = !this._soundOn;
-    });
-    addIcon(UI_ASSETS.settings, GAME_WIDTH / 2 + 30, () => {
-      this._showSettings();
     });
   }
 
