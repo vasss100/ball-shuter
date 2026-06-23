@@ -3,22 +3,6 @@ import { GAME_WIDTH, GAME_HEIGHT } from './constants.js';
 
 const FONT = 'Outfit, Arial, sans-serif';
 
-const ASSETS = {
-  playBtn: './assets/play_button.png',
-  playBtnShadow: './assets/play_button_shadow.png',
-  dailyBtn: './assets/daily_button.png',
-  adventureBtn: './assets/adventure_button.png',
-  badgeNew: './assets/badge_new.png',
-  hsPanel: './assets/hs_panel.png',
-  headerBg: './assets/header_bg.png',
-  footerBg: './assets/footer_bg.png',
-  glowCircle: './assets/glow_circle.png',
-  coinIcon: './assets/coin_icon.png',
-  diamondIcon: './assets/diamond_icon.png',
-  settingsIcon: './assets/settings_icon.png',
-  bgGradient: './assets/bg_gradient.png',
-};
-
 export class HomePage {
   constructor(app, container, callbacks) {
     this.app = app;
@@ -27,44 +11,38 @@ export class HomePage {
     this.visible = true;
     this._logoTime = 0;
 
-    this._textures = {};
     this._loaded = false;
 
-    this._loadAssets().then(() => {
-      this._build();
-      this._loaded = true;
-      if (this._pendingShow) {
-        this.container.visible = true;
-        this.visible = true;
-      }
-    });
-  }
-
-  async _loadAssets() {
-    const loader = PIXI.Assets;
-    // Register all asset URLs
-    const urls = Object.values(ASSETS);
-    for (const url of urls) {
-      loader.add(url, url);
+    this._build();
+    this._loaded = true;
+    if (this._pendingShow) {
+      this.container.visible = true;
+      this.visible = true;
     }
-    const textures = await loader.load(urls);
-    this._textures = textures;
   }
 
   _build() {
-    const t = this._textures;
-
-    this._bg = new PIXI.Sprite(t[ASSETS.bgGradient]);
-    this.container.addChild(this._bg);
-
+    this._drawBackground();
     this._drawStars();
-    this._buildHeader(t);
-    this._buildLogo(t);
-    this._buildScorePanel(t);
-    this._buildPlayButton(t);
-    this._buildDailyButton(t);
-    this._buildAdventureButton(t);
-    this._buildFooter(t);
+    this._buildHeader();
+    this._buildLogo();
+    this._buildScorePanel();
+    this._buildPlayButton();
+    this._buildDailyButton();
+    this._buildAdventureButton();
+    this._buildFooter();
+  }
+
+  _drawBackground() {
+    const bg = new PIXI.Graphics();
+    const colors = [0x1E1040, 0x1C0E38, 0x1A0C30, 0x170A28, 0x130820, 0x0F0618];
+    const bandH = Math.ceil(GAME_HEIGHT / colors.length);
+    colors.forEach((c, i) => {
+      bg.beginFill(c);
+      bg.drawRect(0, i * bandH, GAME_WIDTH, bandH + 2);
+      bg.endFill();
+    });
+    this.container.addChild(bg);
   }
 
   _drawStars() {
@@ -79,15 +57,24 @@ export class HomePage {
     }
   }
 
-  _buildHeader(t) {
-    const header = new PIXI.Sprite(t[ASSETS.headerBg]);
+  _buildHeader() {
+    const header = new PIXI.Graphics();
+    header.beginFill(0x000000, 0.35);
+    header.drawRoundedRect(0, 0, GAME_WIDTH - 20, 52, 16);
+    header.endFill();
     header.x = 10;
     header.y = 8;
     this.container.addChild(header);
 
-    const coin = new PIXI.Sprite(t[ASSETS.coinIcon]);
-    coin.x = 22;
-    coin.y = 18;
+    const coin = new PIXI.Graphics();
+    coin.beginFill(0xFFD700);
+    coin.drawCircle(0, 0, 12);
+    coin.endFill();
+    coin.beginFill(0xFFA500, 0.4);
+    coin.drawCircle(0, 0, 6);
+    coin.endFill();
+    coin.x = 22 + 12;
+    coin.y = 18 + 12;
     this.container.addChild(coin);
 
     this._coinText = new PIXI.Text('1250', {
@@ -97,9 +84,16 @@ export class HomePage {
     this._coinText.y = 22;
     this.container.addChild(this._coinText);
 
-    const diamond = new PIXI.Sprite(t[ASSETS.diamondIcon]);
-    diamond.x = 110;
-    diamond.y = 21;
+    const diamond = new PIXI.Graphics();
+    diamond.beginFill(0x00BFFF);
+    diamond.moveTo(0, -9);
+    diamond.lineTo(9, 0);
+    diamond.lineTo(0, 9);
+    diamond.lineTo(-9, 0);
+    diamond.closePath();
+    diamond.endFill();
+    diamond.x = 110 + 12;
+    diamond.y = 21 + 12;
     this.container.addChild(diamond);
 
     this._diamondText = new PIXI.Text('85', {
@@ -109,9 +103,14 @@ export class HomePage {
     this._diamondText.y = 22;
     this.container.addChild(this._diamondText);
 
-    const gear = new PIXI.Sprite(t[ASSETS.settingsIcon]);
-    gear.x = GAME_WIDTH - 42;
-    gear.y = 20;
+    const gear = new PIXI.Graphics();
+    gear.lineStyle(2, 0x555555);
+    gear.drawCircle(0, 0, 8);
+    gear.beginFill(0xFFFFFF, 0.15);
+    gear.drawCircle(0, 0, 6);
+    gear.endFill();
+    gear.x = GAME_WIDTH - 42 + 8;
+    gear.y = 20 + 8;
     gear.eventMode = 'static';
     gear.cursor = 'pointer';
     gear.on('pointerdown', () => {
@@ -120,12 +119,18 @@ export class HomePage {
     this.container.addChild(gear);
   }
 
-  _buildLogo(t) {
-    const glow = new PIXI.Sprite(t[ASSETS.glowCircle]);
-    glow.anchor.set(0.5);
+  _buildLogo() {
+    const glow = new PIXI.Graphics();
+    for (let i = 3; i >= 0; i--) {
+      const radius = 100 + i * 20;
+      const alpha = Math.max(0, 0.03 - i * 0.005);
+      if (alpha <= 0) continue;
+      glow.beginFill(0xFFCC00, alpha);
+      glow.drawCircle(0, 0, radius);
+      glow.endFill();
+    }
     glow.x = GAME_WIDTH / 2;
     glow.y = 120;
-    glow.alpha = 0.6;
     this.container.addChild(glow);
 
     this._logo = new PIXI.Text('BLOCK BLAST', {
@@ -147,8 +152,11 @@ export class HomePage {
     this.container.addChild(sub);
   }
 
-  _buildScorePanel(t) {
-    const panel = new PIXI.Sprite(t[ASSETS.hsPanel]);
+  _buildScorePanel() {
+    const panel = new PIXI.Graphics();
+    panel.beginFill(0x000000, 0.2);
+    panel.drawRoundedRect(0, 0, 200, 50, 12);
+    panel.endFill();
     panel.x = GAME_WIDTH / 2 - 100;
     panel.y = 185;
     this.container.addChild(panel);
@@ -178,13 +186,25 @@ export class HomePage {
     this.container.addChild(this._hsValue);
   }
 
-  _buildPlayButton(t) {
-    const shadow = new PIXI.Sprite(t[ASSETS.playBtnShadow]);
+  _buildPlayButton() {
+    const shadow = new PIXI.Graphics();
+    shadow.beginFill(0xC32700, 0.4);
+    shadow.drawRoundedRect(0, 0, 300, 64, 28);
+    shadow.endFill();
     shadow.x = GAME_WIDTH / 2 - 150;
     shadow.y = 272;
     this.container.addChild(shadow);
 
-    this._playBtn = new PIXI.Sprite(t[ASSETS.playBtn]);
+    this._playBtn = new PIXI.Graphics();
+    this._playBtn.beginFill(0xFF3B30);
+    this._playBtn.drawRoundedRect(0, 0, 300, 64, 28);
+    this._playBtn.endFill();
+    this._playBtn.beginFill(0xFFFFFF, 0.08);
+    this._playBtn.drawRoundedRect(8, 6, 284, 20, 10);
+    this._playBtn.endFill();
+    this._playBtn.beginFill(0xFF8C00, 0.15);
+    this._playBtn.drawRect(4, 4, 292, 28);
+    this._playBtn.endFill();
     this._playBtn.x = GAME_WIDTH / 2 - 150;
     this._playBtn.y = 268;
     this._playBtn.eventMode = 'static';
@@ -192,8 +212,8 @@ export class HomePage {
     this._playBtn.on('pointerdown', () => {
       if (this.callbacks.onPlay) this.callbacks.onPlay();
     });
-    this._playBtn.on('pointerover', () => { this._playBtn.tint = 0xDDDDDD; });
-    this._playBtn.on('pointerout', () => { this._playBtn.tint = 0xFFFFFF; });
+    this._playBtn.on('pointerover', () => { this._playBtn.alpha = 0.9; });
+    this._playBtn.on('pointerout', () => { this._playBtn.alpha = 1; });
     this.container.addChild(this._playBtn);
 
     const playTxt = new PIXI.Text('PLAY', {
@@ -205,8 +225,14 @@ export class HomePage {
     this.container.addChild(playTxt);
   }
 
-  _buildDailyButton(t) {
-    const btn = new PIXI.Sprite(t[ASSETS.dailyBtn]);
+  _buildDailyButton() {
+    const btn = new PIXI.Graphics();
+    btn.beginFill(0x007AFF);
+    btn.drawRoundedRect(0, 0, GAME_WIDTH - 60, 52, 14);
+    btn.endFill();
+    btn.beginFill(0xFFFFFF, 0.08);
+    btn.drawRoundedRect(6, 4, GAME_WIDTH - 72, 22, 8);
+    btn.endFill();
     btn.x = 30;
     btn.y = 358;
     btn.eventMode = 'static';
@@ -216,11 +242,17 @@ export class HomePage {
     });
     this.container.addChild(btn);
 
-    const star = new PIXI.Sprite(t[ASSETS.coinIcon]);
+    const star = new PIXI.Graphics();
+    star.beginFill(0xFFD700);
+    star.drawCircle(0, 0, 8);
+    star.endFill();
+    star.beginFill(0xFFA500, 0.4);
+    star.drawCircle(0, 0, 4);
+    star.endFill();
     star.width = 20;
     star.height = 20;
-    star.x = 48;
-    star.y = 374;
+    star.x = 48 + 10;
+    star.y = 374 + 10;
     this.container.addChild(star);
 
     const txt = new PIXI.Text('DAILY CHALLENGE', {
@@ -231,7 +263,10 @@ export class HomePage {
     txt.y = 384;
     this.container.addChild(txt);
 
-    const badge = new PIXI.Sprite(t[ASSETS.badgeNew]);
+    const badge = new PIXI.Graphics();
+    badge.beginFill(0xFF3B30);
+    badge.drawRoundedRect(0, 0, 40, 20, 10);
+    badge.endFill();
     badge.x = GAME_WIDTH - 80;
     badge.y = 374;
     this.container.addChild(badge);
@@ -245,8 +280,14 @@ export class HomePage {
     badge.addChild(badgeTxt);
   }
 
-  _buildAdventureButton(t) {
-    const btn = new PIXI.Sprite(t[ASSETS.adventureBtn]);
+  _buildAdventureButton() {
+    const btn = new PIXI.Graphics();
+    btn.beginFill(0x34C759);
+    btn.drawRoundedRect(0, 0, GAME_WIDTH - 60, 52, 14);
+    btn.endFill();
+    btn.beginFill(0xFFFFFF, 0.08);
+    btn.drawRoundedRect(6, 4, GAME_WIDTH - 72, 22, 8);
+    btn.endFill();
     btn.x = 30;
     btn.y = 425;
     btn.eventMode = 'static';
@@ -256,11 +297,18 @@ export class HomePage {
     });
     this.container.addChild(btn);
 
-    const icon = new PIXI.Sprite(t[ASSETS.diamondIcon]);
+    const icon = new PIXI.Graphics();
+    icon.beginFill(0x00BFFF);
+    icon.moveTo(0, -7);
+    icon.lineTo(7, 0);
+    icon.lineTo(0, 7);
+    icon.lineTo(-7, 0);
+    icon.closePath();
+    icon.endFill();
     icon.width = 20;
     icon.height = 20;
-    icon.x = 48;
-    icon.y = 441;
+    icon.x = 48 + 10;
+    icon.y = 441 + 10;
     this.container.addChild(icon);
 
     const txt = new PIXI.Text('ADVENTURE', {
@@ -272,9 +320,15 @@ export class HomePage {
     this.container.addChild(txt);
   }
 
-  _buildFooter(t) {
+  _buildFooter() {
     const footerY = GAME_HEIGHT - 60;
-    const footer = new PIXI.Sprite(t[ASSETS.footerBg]);
+    const footer = new PIXI.Graphics();
+    footer.beginFill(0x0A0418, 0.97);
+    footer.drawRect(0, 0, GAME_WIDTH, 60);
+    footer.endFill();
+    footer.beginFill(0x3A2060, 0.3);
+    footer.drawRect(0, 0, GAME_WIDTH, 1);
+    footer.endFill();
     footer.y = footerY;
     this.container.addChild(footer);
 
@@ -355,8 +409,5 @@ export class HomePage {
   }
 
   destroy() {
-    for (const key in this._textures) {
-      this._textures[key].destroy(true);
-    }
   }
 }
