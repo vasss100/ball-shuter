@@ -34,10 +34,6 @@ export class Game {
     this.renderer = new Renderer(this.ctx);
     this.renderer.resize(this.canvas.width, this.canvas.height);
 
-    const bg = new Image();
-    bg.onload = () => this.renderer.setBgImage(bg);
-    bg.src = 'IMG_20260623_222031.jpg';
-
     this.board = new Board(this.canvas.width, this.canvas.height);
     this.board.generateInitial();
 

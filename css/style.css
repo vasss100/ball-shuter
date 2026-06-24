@@ -8,7 +8,7 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+  background: #0f0c29;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   color: #fff;
   -webkit-tap-highlight-color: transparent;
@@ -22,32 +22,8 @@ html, body {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+  background: url('../IMG_20260623_222031.jpg') center/cover no-repeat;
   position: relative;
-}
-
-.game-wrapper::before {
-  content: '';
-  position: absolute;
-  width: 80vmin;
-  height: 80vmin;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(167,139,250,0.12) 0%, transparent 70%);
-  top: -20vmin;
-  right: -20vmin;
-  pointer-events: none;
-}
-
-.game-wrapper::after {
-  content: '';
-  position: absolute;
-  width: 60vmin;
-  height: 60vmin;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(78,205,196,0.08) 0%, transparent 70%);
-  bottom: -10vmin;
-  left: -10vmin;
-  pointer-events: none;
 }
 
 .game-container {
@@ -57,6 +33,7 @@ html, body {
   position: relative;
   overflow: hidden;
   border-radius: 20px;
+  background: url('../IMG_20260623_222031.jpg') center/cover no-repeat;
   box-shadow:
     0 0 40px rgba(48, 43, 99, 0.6),
     0 0 80px rgba(15, 12, 41, 0.4),

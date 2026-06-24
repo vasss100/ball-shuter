@@ -5,11 +5,6 @@ export class Renderer {
     this.ctx = ctx;
     this.w = 0;
     this.h = 0;
-    this.bgImage = null;
-  }
-
-  setBgImage(img) {
-    this.bgImage = img;
   }
 
   resize(w, h) {
@@ -22,17 +17,6 @@ export class Renderer {
   }
 
   drawBackground() {
-    const ctx = this.ctx;
-    if (this.bgImage) {
-      ctx.drawImage(this.bgImage, 0, 0, this.w, this.h);
-    } else {
-      const grad = ctx.createLinearGradient(0, 0, 0, this.h);
-      grad.addColorStop(0, '#0f0c29');
-      grad.addColorStop(0.5, '#302b63');
-      grad.addColorStop(1, '#24243e');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, this.w, this.h);
-    }
   }
 
   drawBubble(x, y, radius, colorIndex) {
