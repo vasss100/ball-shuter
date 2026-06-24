@@ -5,6 +5,11 @@ export class Renderer {
     this.ctx = ctx;
     this.w = 0;
     this.h = 0;
+    this.bgImage = null;
+  }
+
+  setBgImage(img) {
+    this.bgImage = img;
   }
 
   resize(w, h) {
@@ -18,28 +23,16 @@ export class Renderer {
 
   drawBackground() {
     const ctx = this.ctx;
-    const grad = ctx.createLinearGradient(0, 0, 0, this.h);
-    grad.addColorStop(0, '#0f0c29');
-    grad.addColorStop(0.5, '#302b63');
-    grad.addColorStop(1, '#24243e');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, this.w, this.h);
-
-    ctx.save();
-    const grd = ctx.createRadialGradient(this.w * 0.8, -this.h * 0.2, 0, this.w * 0.8, -this.h * 0.2, this.w * 0.9);
-    grd.addColorStop(0, 'rgba(167,139,250,0.08)');
-    grd.addColorStop(1, 'transparent');
-    ctx.fillStyle = grd;
-    ctx.fillRect(0, 0, this.w, this.h);
-    ctx.restore();
-
-    ctx.save();
-    const grd2 = ctx.createRadialGradient(-this.w * 0.1, this.h * 0.9, 0, -this.w * 0.1, this.h * 0.9, this.w * 0.7);
-    grd2.addColorStop(0, 'rgba(78,205,196,0.06)');
-    grd2.addColorStop(1, 'transparent');
-    ctx.fillStyle = grd2;
-    ctx.fillRect(0, 0, this.w, this.h);
-    ctx.restore();
+    if (this.bgImage) {
+      ctx.drawImage(this.bgImage, 0, 0, this.w, this.h);
+    } else {
+      const grad = ctx.createLinearGradient(0, 0, 0, this.h);
+      grad.addColorStop(0, '#0f0c29');
+      grad.addColorStop(0.5, '#302b63');
+      grad.addColorStop(1, '#24243e');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, this.w, this.h);
+    }
   }
 
   drawBubble(x, y, radius, colorIndex) {
