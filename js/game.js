@@ -1,569 +1,771 @@
-// =========================================================================
-// 1. GLOBAL CONFIGURATION & EXACT ASSET PATHS
-// =========================================================================
-const CONFIG = {
-  COLS: 8,
-  ROWS: 14,
-  INITIAL_ROWS: 5,
-  SHOOT_SPEED: 16,
-  POP_SCORE: 10,
-  FLOAT_SCORE: 25,
-  SHOTS_PER_ROW: 7,
-  NUM_COLORS: 5,
-  COLOR_SPECIAL: 5,
-  COLOR_AIR: 6,
-  SPECIAL_CHANCE: 0.12,
-  AIR_CHANCE: 0.08,
-  MAX_PARTICLES: 300,
-  IMAGE_PATH: 'asets/new image/',
-  BUBBLE_COLORS: [
-    { name: 'blue',   file: 'blue boll.png' },
-    { name: 'green',  file: 'green boll.png' },
-    { name: 'purple', file: 'pulpul boll.png' },
-    { name: 'red',    file: 'red boll.png' },
-    { name: 'yellow', file: 'yelloboll.png' },
-  ],
-  BUBBLE_SPECIAL: { name: 'colorful', file: 'colorfull boll.png' },
-  BUBBLE_AIR:     { name: 'air',      file: 'Gemini_Generated_Image_a76ulba76ulba76u.png' },
-  UI: {
-    premiumPlay: 'Gemini_Generated_Image_k3tv0xk3tv0xk3tv.png',
-    back: 'back.png',
-    pause: 'puss .png', 
-    play: 'play.png',
-  },
-};
+(() => {
+  const C = {
+    COLS: 8,
+    ROWS: 14,
+    INITIAL_ROWS: 5,
+    SHOOT_SPEED: 18,
+    POP_SCORE: 10,
+    FLOAT_SCORE: 25,
+    SHOTS_PER_ROW: 7,
+    NUM_COLORS: 5,
+    COLOR_SPECIAL: 5,
+    COLOR_AIR: 6,
+    SPECIAL_CHANCE: 0.12,
+    AIR_CHANCE: 0.08,
+    MAX_PARTICLES: 300,
+    IMAGE_PATH: 'asets/new image/',
+    BUBBLE_COLORS: [
+      { name: 'blue',   file: 'blue boll.png' },
+      { name: 'green',  file: 'green boll.png' },
+      { name: 'purple', file: 'pulpul boll.png' },
+      { name: 'red',    file: 'red boll.png' },
+      { name: 'yellow', file: 'yelloboll.png' },
+    ],
+    BUBBLE_SPECIAL: { name: 'colorful', file: 'colorfull boll.png' },
+    BUBBLE_AIR:     { name: 'air',      file: 'Gemini_Generated_Image_a76ulba76ulba76u.png' },
+    UI: {
+      premiumPlay: 'Gemini_Generated_Image_k3tv0xk3tv0xk3tv.png',
+      back: 'back.png',
+      pause: 'puss .png',
+      play: 'play.png',
+    },
+  };
 
-const BUBBLE_FALLBACK_COLORS = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#A78BFA', '#34D399', '#F97316', '#FFFFFF'];
+  const W = 540;
+  const H = 960;
+  const IMG = C.IMAGE_PATH;
+  const COLOR_VALS = [0x4a90d9, 0x4caf50, 0x9c27b0, 0xf44336, 0xffeb3b, 0xff9800, 0x90a4ae];
 
-// =========================================================================
-// 2. BULLETPROOF IMAGE LOADER SYSTEM
-// =========================================================================
-class ImageLoader {
-  constructor() {
-    this.images = {};
-    this.total = 0;
-    this.loaded = 0;
+  let app, gc, pc, hc, oc, tc;
+  let grid = [];
+  let score = 0, level = 1, shotsFired = 0, lastShiftShot = 0;
+  let hexW, hexH, hexR, gx, gy, gTop, gBot, wL, wR;
+  let cannon, cannonAngle, cannonBase, cannonFlash;
+  let proj = null;
+  let parts = [];
+  let trajGfx;
+  let state = 'loading';
+  let px = W / 2, py = H / 2;
+  let scoreTxt, levelTxt, shotsTxt, nextTxt;
+  let menuC, playingUI, gameOverUI;
+  let bubbleTex = {};
+  let pTex;
+  let bgSpr;
+  let canFire = true;
+  let nextColor;
+  let popAnims = [];
+  let snd = null;
+
+  function rnd() { return Math.random(); }
+
+  function rndBubble() {
+    const r = rnd();
+    if (r < C.AIR_CHANCE) return C.COLOR_AIR;
+    if (r < C.AIR_CHANCE + C.SPECIAL_CHANCE) return C.COLOR_SPECIAL;
+    return Math.floor(rnd() * C.NUM_COLORS);
   }
 
-  add(key, path) {
-    this.total++;
-    const img = new Image();
-    img.onload = () => { this.loaded++; this.updateUI(); };
-    img.onerror = () => {
-      console.warn(`Asset fallback triggered for: ${path}`);
-      this.loaded++;
-      this.updateUI();
-    };
-    img.src = path;
-    this.images[key] = img;
+  function rndNext() {
+    const r = rnd();
+    if (r < C.AIR_CHANCE) return C.COLOR_AIR;
+    if (r < C.AIR_CHANCE + C.SPECIAL_CHANCE) return C.COLOR_SPECIAL;
+    return Math.floor(rnd() * C.NUM_COLORS);
   }
 
-  updateUI() {
-    const txt = document.getElementById('loadingText');
-    if (txt) {
-      const pct = Math.round((this.loaded / this.total) * 100);
-      txt.innerText = `Loading ${pct}%`;
+  function neighbors(row, col) {
+    const dirs = row % 2 === 0
+      ? [[-1,-1],[-1,0],[0,-1],[0,1],[1,-1],[1,0]]
+      : [[-1,0],[-1,1],[0,-1],[0,1],[1,0],[1,1]];
+    const o = [];
+    for (const [dr, dc] of dirs) {
+      const r = row + dr, c = col + dc;
+      if (r >= 0 && r < C.ROWS && c >= 0 && c < C.COLS) o.push({r, c});
     }
+    return o;
   }
 
-  get done() { return this.loaded >= this.total; }
-}
-
-// =========================================================================
-// 3. CORE GAME MODULES (BOARD & SHOOTER LOGIC)
-// =========================================================================
-class Board {
-  constructor() {
-    this.grid = [];
-    this.bubbleRadius = 20;
-    this.hexW = 34; this.hexH = 40;
-    this.offsetX = 0; this.offsetY = 0;
-    this.cols = CONFIG.COLS; this.rows = CONFIG.ROWS;
+  function sPos(row, col) {
+    return { x: gx + col * hexW + (row % 2 === 1 ? hexW / 2 : 0), y: gy + row * hexH };
   }
 
-  configure(canvasW, canvasH, topH) {
-    const padding = canvasW * 0.04;
-    const availW = canvasW - padding * 2;
-    this.bubbleRadius = availW / (this.cols * Math.sqrt(3) + Math.sqrt(3) / 2);
-    const maxR = ((canvasH - topH - 20) * 0.72) / (this.rows * 1.5);
-    if (this.bubbleRadius > maxR) this.bubbleRadius = maxR;
-    this.hexW = Math.sqrt(3) * this.bubbleRadius;
-    this.hexH = 2 * this.bubbleRadius;
-    this.offsetX = (canvasW - this.cols * this.hexW) / 2;
-    this.offsetY = topH + 10 + this.bubbleRadius * 1.5;
+  function p2g(px_, py_) {
+    const row = Math.round((py_ - gy) / hexH);
+    const off = row % 2 === 1 ? hexW / 2 : 0;
+    const col = Math.round((px_ - gx - off) / hexW);
+    return { r: Math.max(0, Math.min(C.ROWS - 1, row)), c: Math.max(0, Math.min(C.COLS - 1, col)) };
   }
 
-  clearGrid() {
-    this.grid = [];
-    for (let r = 0; r < this.rows; r++) {
-      this.grid[r] = [];
-      const maxC = (r % 2 === 1) ? this.cols - 1 : this.cols;
-      for (let c = 0; c < maxC; c++) this.grid[r][c] = null;
+  function closestEmpty(px_, py_) {
+    const a = p2g(px_, py_);
+    const cands = [a, ...neighbors(a.r, a.c)];
+    let best = null, bd = Infinity;
+    for (const o of cands) {
+      if (o.r < 0 || o.r >= C.ROWS || o.c < 0 || o.c >= C.COLS) continue;
+      if (grid[o.r][o.c] !== null) continue;
+      const p = sPos(o.r, o.c);
+      const d = Math.hypot(px_ - p.x, py_ - p.y);
+      if (d < bd) { bd = d; best = o; }
     }
+    return best;
   }
 
-  generateInitial() {
-    this.clearGrid();
-    for (let r = 0; r < CONFIG.INITIAL_ROWS; r++) {
-      const maxC = (r % 2 === 1) ? this.cols - 1 : this.cols;
-      for (let c = 0; c < maxC; c++) {
-        this.grid[r][c] = Math.floor(Math.random() * CONFIG.NUM_COLORS);
+  function cMatch(a, b) {
+    if (a == null || b == null) return false;
+    if (a === C.COLOR_AIR || b === C.COLOR_AIR) return false;
+    if (a === C.COLOR_SPECIAL || b === C.COLOR_SPECIAL) return true;
+    return a === b;
+  }
+
+  function flood(row, col) {
+    const colr = grid[row][col];
+    if (colr == null || colr === C.COLOR_AIR) return [];
+    const vis = new Set();
+    const cl = [];
+    const q = [{r: row, c: col}];
+    while (q.length) {
+      const cur = q.shift();
+      const k = cur.r + ',' + cur.c;
+      if (vis.has(k)) continue;
+      vis.add(k);
+      cl.push(cur);
+      for (const n of neighbors(cur.r, cur.c)) {
+        const nk = n.r + ',' + n.c;
+        if (vis.has(nk)) continue;
+        if (grid[n.r][n.c] == null) continue;
+        if (cMatch(grid[n.r][n.c], colr)) q.push(n);
       }
     }
+    return cl;
   }
 
-  getHexPos(row, col) {
-    const odd = row % 2;
-    return {
-      x: this.offsetX + (odd ? this.hexW : this.hexW / 2) + col * this.hexW,
-      y: this.offsetY + row * this.hexH * 0.75,
-    };
-  }
-
-  getNeighbors(row, col) {
-    const nb = []; const odd = row % 2;
-    const offsets = odd ? 
-      [[0, -1], [0, 1], [-1, 0], [1, 0], [-1, 1], [1, 1]] : 
-      [[0, -1], [0, 1], [-1, -1], [1, -1], [-1, 0], [1, 0]];
-    for (const [dr, dc] of offsets) {
-      const nr = row + dr, nc = col + dc;
-      const maxC = (nr % 2 === 1) ? this.cols - 1 : this.cols;
-      if (nr >= 0 && nr < this.rows && nc >= 0 && nc < maxC) nb.push([nr, nc]);
+  function findFloat() {
+    const vis = new Set();
+    const q = [];
+    for (let c = 0; c < C.COLS; c++) {
+      if (grid[0][c] != null) { q.push({r: 0, c}); vis.add('0,' + c); }
     }
-    return nb;
-  }
-
-  checkGameOver() {
-    const maxC = ((this.rows - 1) % 2 === 1) ? this.cols - 1 : this.cols;
-    for (let c = 0; c < maxC; c++) {
-      if (this.grid[this.rows - 1][c] !== null && this.grid[this.rows - 1][c] !== undefined) return true;
-    }
-    return false;
-  }
-
-  shiftDown() {
-    for (let r = this.rows - 1; r > 0; r--) {
-      const maxC = (r % 2 === 1) ? this.cols - 1 : this.cols;
-      for (let c = 0; c < maxC; c++) {
-        const prevMaxC = ((r - 1) % 2 === 1) ? this.cols - 1 : this.cols;
-        if (c < prevMaxC) this.grid[r][c] = this.grid[r - 1][c];
-        else this.grid[r][c] = null;
+    while (q.length) {
+      const cur = q.shift();
+      for (const n of neighbors(cur.r, cur.c)) {
+        const nk = n.r + ',' + n.c;
+        if (vis.has(nk)) continue;
+        if (grid[n.r][n.c] == null) continue;
+        vis.add(nk);
+        q.push(n);
       }
     }
-    const maxC0 = (0 % 2 === 1) ? this.cols - 1 : this.cols;
-    for (let c = 0; c < maxC0; c++) this.grid[0][c] = Math.floor(Math.random() * CONFIG.NUM_COLORS);
-  }
-}
-
-class Shooter {
-  constructor(x, y, bubbleR) {
-    this.x = x; this.y = y; this.bubbleR = bubbleR;
-    this.angle = -Math.PI / 2;
-    this.current = null; this.next = null;
+    const float = [];
+    for (let r = 0; r < C.ROWS; r++)
+      for (let c = 0; c < C.COLS; c++)
+        if (grid[r][c] != null && !vis.has(r + ',' + c)) float.push({r, c});
+    return float;
   }
 
-  refill() {
-    this.current = this.next !== null ? this.next : Math.floor(Math.random() * CONFIG.NUM_COLORS);
-    this.next = Math.floor(Math.random() * CONFIG.NUM_COLORS);
+  function texForColor(colr) {
+    if (colr >= 0 && colr < C.NUM_COLORS) return bubbleTex[C.BUBBLE_COLORS[colr].name];
+    if (colr === C.COLOR_SPECIAL) return bubbleTex.special;
+    if (colr === C.COLOR_AIR) return bubbleTex.air;
+    return null;
   }
-
-  getTipPosition() {
-    return {
-      x: this.x + Math.cos(this.angle) * this.bubbleR * 1.8,
-      y: this.y + Math.sin(this.angle) * this.bubbleR * 1.8,
-    };
-  }
-
-  calculateTrajectory(canvasW, board) {
-    const tip = this.getTipPosition();
-    let x = tip.x, y = tip.y;
-    let dx = Math.cos(this.angle) * CONFIG.SHOOT_SPEED;
-    let dy = Math.sin(this.angle) * CONFIG.SHOOT_SPEED;
-    const points = [{ x, y }];
-
-    for (let i = 0; i < 120; i++) {
-      x += dx; y += dy;
-      if (x < this.bubbleR) { x = this.bubbleR; dx *= -1; points.push({ x, y }); }
-      if (x > canvasW - this.bubbleR) { x = canvasW - this.bubbleR; dx *= -1; points.push({ x, y }); }
-      
-      // Check grid hit simulation
-      let hit = false;
-      const stepBubble = { x, y };
-      for (let r = 0; r < board.rows; r++) {
-        const maxC = (r % 2 === 1) ? board.cols - 1 : board.cols;
-        for (let c = 0; c < maxC; c++) {
-          if (board.grid[r][c] === null) continue;
-          const pos = board.getHexPos(r, c);
-          const distSq = (pos.x - x) ** 2 + (pos.y - y) ** 2;
-          if (distSq < (board.bubbleRadius * 2) ** 2) { hit = true; break; }
-        }
-        if (hit) break;
-      }
-      if (y < board.offsetY || hit) { points.push({ x, y }); break; }
-    }
-    return points;
-  }
-}
-
-// =========================================================================
-// 4. COLLISION & FLOOD-FILL PACK
-// =========================================================================
-function checkGridCollision(bubble, board) {
-  const thresholdSq = (board.bubbleRadius * 2) ** 2;
-  for (let r = 0; r < board.rows; r++) {
-    const maxC = (r % 2 === 1) ? board.cols - 1 : board.cols;
-    for (let c = 0; c < maxC; c++) {
-      if (board.grid[r][c] === null) continue;
-      const pos = board.getHexPos(r, c);
-      if ((pos.x - bubble.x) ** 2 + (pos.y - bubble.y) ** 2 < thresholdSq) return { row: r, col: c };
-    }
-  }
-  return null;
-}
-
-function findSnapPosition(bubble, board) {
-  let best = null, bestDistSq = Infinity;
-  for (let r = 0; r < board.rows; r++) {
-    const maxC = (r % 2 === 1) ? board.cols - 1 : board.cols;
-    for (let c = 0; c < maxC; c++) {
-      if (board.grid[r][c] !== null) continue;
-      const pos = board.getHexPos(r, c);
-      const dSq = (pos.x - bubble.x) ** 2 + (pos.y - bubble.y) ** 2;
-      if (dSq < bestDistSq) { bestDistSq = dSq; best = { row: r, col: c }; }
-    }
-  }
-  return best;
-}
-
-function findConnected(board, row, col) {
-  const target = board.grid[row]?.[col];
-  if (target === null || target === undefined) return [];
-  const visited = new Set(), matched = [], queue = [[row, col]];
-
-  while (queue.length > 0) {
-    const [r, c] = queue.shift();
-    const key = `${r},${c}`;
-    if (visited.has(key)) continue;
-    visited.add(key);
-    if (board.grid[r]?.[c] !== target) continue;
-    matched.push([r, c]);
-    for (const nb of board.getNeighbors(r, c)) {
-      if (!visited.has(`${nb[0]},${nb[1]}`)) queue.push(nb);
-    }
-  }
-  return matched.length >= 3 ? matched : [];
-}
-
-function findFloating(board) {
-  const connected = new Set(), queue = [];
-  const maxC0 = (0 % 2 === 1) ? board.cols - 1 : board.cols;
-
-  for (let c = 0; c < maxC0; c++) {
-    if (board.grid[0][c] !== null) { queue.push([0, c]); connected.add(`0,${c}`); }
-  }
-  while (queue.length > 0) {
-    const [r, c] = queue.shift();
-    for (const nb of board.getNeighbors(r, c)) {
-      const key = `${nb[0]},${nb[1]}`;
-      if (!connected.has(key) && board.grid[nb[0]]?.[nb[1]] !== null) {
-        connected.add(key); queue.push(nb);
-      }
-    }
-  }
-  const floating = [];
-  for (let r = 0; r < board.rows; r++) {
-    const maxC = (r % 2 === 1) ? board.cols - 1 : board.cols;
-    for (let c = 0; c < maxC; c++) {
-      if (board.grid[r][c] !== null && !connected.has(`${r},${c}`)) floating.push([r, c]);
-    }
-  }
-  return floating;
-}
-
-// =========================================================================
-// 5. OVERHAULED CANVAS RENDERING SYSTEM (STRICT IMAGE RENDERING)
-// =========================================================================
-class Renderer {
-  constructor(ctx, images) {
-    this.ctx = ctx; this.images = images;
-    this.w = 0; this.h = 0; this.topH = 50;
-  }
-
-  resize(w, h) {
-    this.w = w; this.h = h;
-    this.topH = Math.max(50, Math.min(h * 0.08, 70));
-  }
-
-  drawBackground() {
-    // FIXED: Renders 'backgraund.jpg' to fill the entire canvas viewport
-    const bg = this.images['background'];
-    if (bg && bg.complete && bg.naturalWidth > 0) {
-      this.ctx.drawImage(bg, 0, 0, this.w, this.h);
-    }
-  }
-
-  drawBubble(x, y, radius, colorIndex) {
-    let img = null;
-    if (colorIndex >= 0 && colorIndex < CONFIG.NUM_COLORS) {
-      img = this.images[CONFIG.BUBBLE_COLORS[colorIndex].name];
-    } else if (colorIndex === CONFIG.COLOR_SPECIAL) img = this.images['colorful'];
-    else if (colorIndex === CONFIG.COLOR_AIR) img = this.images['air'];
-
-    const size = radius * 2;
-    // CRITICAL: Force image bounding box render instead of glowing circles
-    if (img && img.complete && img.naturalWidth > 0) {
-      this.ctx.drawImage(img, x - radius, y - radius, size, size);
-    } else {
-      this.ctx.beginPath(); this.ctx.arc(x, y, radius, 0, Math.PI * 2);
-      this.ctx.fillStyle = BUBBLE_FALLBACK_COLORS[colorIndex] || '#ff6b6b';
-      this.ctx.fill();
-    }
-  }
-
-  drawGrid(board) {
-    for (let r = 0; r < board.rows; r++) {
-      const maxC = (r % 2 === 1) ? board.cols - 1 : board.cols;
-      for (let c = 0; c < maxC; c++) {
-        if (board.grid[r][c] !== null) {
-          const pos = board.getHexPos(r, c);
-          this.drawBubble(pos.x, pos.y, board.bubbleRadius, board.grid[r][c]);
-        }
-      }
-    }
-  }
-
-  drawShooter(shooter) {
-    this.ctx.save();
-    this.ctx.translate(shooter.x, shooter.y);
-    this.ctx.rotate(shooter.angle);
-    const cannon = this.images['play'];
-    const cSize = shooter.bubbleR * 2.4;
-    if (cannon && cannon.complete && cannon.naturalWidth > 0) {
-      this.ctx.drawImage(cannon, -cSize / 2, -cSize / 2, cSize, cSize);
-    }
-    this.ctx.restore();
-
-    if (shooter.current !== null) {
-      const tip = shooter.getTipPosition();
-      this.drawBubble(tip.x, tip.y, shooter.bubbleR, shooter.current);
-    }
-  }
-
-  drawTrajectory(shooter, canvasW, board) {
-    const points = shooter.calculateTrajectory(canvasW, board);
-    if (points.length < 2) return;
-    this.ctx.save();
-    this.ctx.beginPath();
-    this.ctx.setLineDash([6, 8]);
-    this.ctx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++) this.ctx.lineTo(points[i].x, points[i].y);
-    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-    this.ctx.lineWidth = 2;
-    this.ctx.stroke();
-    this.ctx.restore();
-  }
-
-  drawParticles(particles) {
-    for (const p of particles) {
-      this.ctx.save();
-      this.ctx.globalAlpha = p.alpha;
-      this.drawBubble(p.x, p.y, p.radius, p.color);
-      this.ctx.restore();
-    }
-  }
-
-  drawHUD(score, level) {
-    this.ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    this.ctx.fillRect(0, 0, this.w, this.topH);
-    this.ctx.fillStyle = '#fff';
-    this.ctx.font = 'bold 16px sans-serif';
-    this.ctx.textAlign = 'left';
-    this.ctx.fillText(`Score: ${score}`, 20, this.topH / 2 + 6);
-    this.ctx.textAlign = 'right';
-    this.ctx.fillText(`Level: ${level}`, this.w - 20, this.topH / 2 + 6);
-  }
-
-  drawMainMenu() {
-    this.drawBackground();
-    const size = Math.min(this.w * 0.4, 140);
-    this._playBtn = { x: this.w / 2 - size / 2, y: this.h * 0.55 - size / 2, w: size, h: size };
-    const btn = this.images['premiumPlay'];
-    if (btn && btn.complete && btn.naturalWidth > 0) {
-      this.ctx.drawImage(btn, this._playBtn.x, this._playBtn.y, size, size);
-    }
-  }
-
-  drawGameOver(score) {
-    this.ctx.fillStyle = 'rgba(0,0,0,0.75)';
-    this.ctx.fillRect(0, 0, this.w, this.h);
-    this.ctx.fillStyle = '#fff';
-    this.ctx.textAlign = 'center';
-    this.ctx.font = 'bold 28px sans-serif';
-    this.ctx.fillText('GAME OVER', this.w / 2, this.h / 2 - 20);
-    this.ctx.font = '18px sans-serif';
-    this.ctx.fillText(`Final Score: ${score}`, this.w / 2, this.h / 2 + 15);
-    this.ctx.font = '14px sans-serif';
-    this.ctx.fillStyle = '#a78bfa';
-    this.ctx.fillText('Tap anywhere to Restart', this.w / 2, this.h / 2 + 55);
-  }
-}
-
-// =========================================================================
-// 6. SINGLE-ENGINE CONTROLLER LOOP
-// =========================================================================
-window.addEventListener('DOMContentLoaded', () => {
-  const canvas = document.getElementById('gameCanvas');
-  const loadingScreen = document.getElementById('loadingScreen');
-  const ctx = canvas.getContext('2d');
-  const loader = new ImageLoader();
-
-  // Enqueue assets
-  loader.add('background', 'backgraund.jpg');
-  for (const b of CONFIG.BUBBLE_COLORS) loader.add(b.name, CONFIG.IMAGE_PATH + b.file);
-  loader.add('colorful', CONFIG.IMAGE_PATH + CONFIG.BUBBLE_SPECIAL.file);
-  loader.add('air', CONFIG.IMAGE_PATH + CONFIG.BUBBLE_AIR.file);
-  loader.add('premiumPlay', CONFIG.IMAGE_PATH + CONFIG.UI.premiumPlay);
-  loader.add('back', CONFIG.IMAGE_PATH + CONFIG.UI.back);
-  loader.add('pause', CONFIG.IMAGE_PATH + CONFIG.UI.pause);
-  loader.add('play', CONFIG.IMAGE_PATH + CONFIG.UI.play);
-
-  let board = new Board(), shooter = null, renderer = null;
-  let score = 0, level = 1, state = 'LOADING', flyingBubble = null, shotsFired = 0;
-  let particles = [];
 
   function resize() {
-    canvas.width = canvas.parentElement.clientWidth;
-    canvas.height = canvas.parentElement.clientHeight;
-    if (renderer) renderer.resize(canvas.width, canvas.height);
-    board.configure(canvas.width, canvas.height, renderer ? renderer.topH : 50);
-    if (shooter) {
-      shooter.x = canvas.width / 2;
-      shooter.y = canvas.height - board.bubbleRadius * 2.5;
-      shooter.bubbleR = board.bubbleRadius;
-    }
+    const parent = document.getElementById('game-container');
+    if (!parent || !app) return;
+    const mw = parent.clientWidth, mh = parent.clientHeight;
+    const s = Math.min(mw / W, mh / H);
+    const w = Math.floor(W * s), h = Math.floor(H * s);
+    app.view.style.cssText = `position:absolute;width:${w}px;height:${h}px;left:${Math.floor((mw-w)/2)}px;top:${Math.floor((mh-h)/2)}px`;
   }
-  window.addEventListener('resize', resize);
 
-  function start() {
-    state = 'PLAYING'; score = 0; level = 1; shotsFired = 0; particles = []; flyingBubble = null;
-    board.generateInitial();
-    shooter = new Shooter(canvas.width / 2, canvas.height - board.bubbleRadius * 2.5, board.bubbleRadius);
-    shooter.refill();
+  function initPixi() {
+    app = new PIXI.Application({ width: W, height: H, backgroundColor: 0x0a0a1a, antialias: true, resolution: Math.min(window.devicePixelRatio || 1, 2), autoDensity: true });
+    document.getElementById('game-container').appendChild(app.view);
+    window.addEventListener('resize', resize);
     resize();
   }
 
-  function handleInput(clientX, clientY, shoot = false) {
-    const rect = canvas.getBoundingClientRect();
-    const mx = (clientX - rect.left) * (canvas.width / rect.width);
-    const my = (clientY - rect.top) * (canvas.height / rect.height);
+  function mkLoadScreen() {
+    snd = new PIXI.Text('Loading 0%', { fontFamily: 'Segoe UI, sans-serif', fontSize: 32, fill: '#fff', fontWeight: 'bold' });
+    snd.anchor.set(0.5); snd.x = W / 2; snd.y = H / 2;
+    app.stage.addChild(snd);
+  }
 
-    if (state === 'MENU' && shoot && renderer._playBtn) {
-      if (mx >= renderer._playBtn.x && mx <= renderer._playBtn.x + renderer._playBtn.w &&
-          my >= renderer._playBtn.y && my <= renderer._playBtn.y + renderer._playBtn.h) start();
-    } else if (state === 'GAME_OVER' && shoot) {
-      state = 'MENU';
-    } else if (state === 'PLAYING' && shooter) {
-      shooter.angle = Math.atan2(my - shooter.y, mx - shooter.x);
-      if (shoot && !flyingBubble) {
-        flyingBubble = {
-          x: shooter.getTipPosition().x, y: shooter.getTipPosition().y,
-          vx: Math.cos(shooter.angle) * CONFIG.SHOOT_SPEED,
-          vy: Math.sin(shooter.angle) * CONFIG.SHOOT_SPEED,
-          color: shooter.current
-        };
-        shooter.refill();
+  function buildManifest() {
+    const m = { background: 'backgraund.jpg' };
+    for (const bc of C.BUBBLE_COLORS) m[bc.name] = IMG + bc.file;
+    m.special = IMG + C.BUBBLE_SPECIAL.file;
+    m.air = IMG + C.BUBBLE_AIR.file;
+    m.premiumPlay = IMG + C.UI.premiumPlay;
+    m.backBtn = IMG + C.UI.back;
+    m.pauseBtn = IMG + C.UI.pause;
+    m.cannonImg = IMG + C.UI.play;
+    return m;
+  }
+
+  async function loadAssets() {
+    const manifest = buildManifest();
+    const keys = Object.keys(manifest);
+    let loaded = 0;
+    const results = {};
+    for (const key of keys) {
+      try {
+        results[key] = await PIXI.Assets.load(manifest[key]);
+      } catch (e) {
+        console.warn('Load fail:', manifest[key], e);
+        const g = new PIXI.Graphics();
+        g.beginFill(COLOR_VALS[loaded % COLOR_VALS.length] || 0xffffff);
+        g.drawCircle(0, 0, 28);
+        g.endFill();
+        results[key] = app.renderer.generateTexture(g);
+        g.destroy();
+      }
+      loaded++;
+      if (snd) snd.text = 'Loading ' + Math.floor((loaded / keys.length) * 100) + '%';
+    }
+    return results;
+  }
+
+  function mkPTex() {
+    const g = new PIXI.Graphics();
+    g.beginFill(0xffffff); g.drawCircle(0, 0, 8); g.endFill();
+    pTex = app.renderer.generateTexture(g);
+    g.destroy();
+  }
+
+  function setUpLayers() {
+    gc = new PIXI.Container();
+    pc = new PIXI.Container();
+    hc = new PIXI.Container();
+    oc = new PIXI.Container();
+    tc = new PIXI.Container();
+    app.stage.addChild(gc);
+    app.stage.addChild(pc);
+    app.stage.addChild(tc);
+    app.stage.addChild(hc);
+    app.stage.addChild(oc);
+    trajGfx = new PIXI.Graphics();
+    tc.addChild(trajGfx);
+  }
+
+  function calcGrid() {
+    hexW = (W - 30) / (C.COLS + 0.5);
+    hexR = hexW / 2;
+    hexH = hexW * Math.sqrt(3) / 2;
+    gx = 15;
+    gy = 50;
+    gTop = gy - hexR;
+    gBot = gy + (C.ROWS - 1) * hexH + hexR;
+    wL = 8;
+    wR = W - 8;
+  }
+
+  function buildGrid() {
+    grid = [];
+    for (let r = 0; r < C.ROWS; r++) {
+      const row = [];
+      for (let c = 0; c < C.COLS; c++) row.push(r < C.INITIAL_ROWS ? rndBubble() : null);
+      grid.push(row);
+    }
+  }
+
+  function renderGrid() {
+    gc.removeChildren(true);
+    for (let r = 0; r < C.ROWS; r++) {
+      for (let c = 0; c < C.COLS; c++) {
+        const v = grid[r][c];
+        if (v == null) continue;
+        const tex = texForColor(v);
+        if (!tex) continue;
+        const p = sPos(r, c);
+        const spr = new PIXI.Sprite(tex);
+        spr.anchor.set(0.5); spr.x = p.x; spr.y = p.y;
+        spr.scale.set(hexR / 28);
+        gc.addChild(spr);
       }
     }
   }
 
-  // Pointer Listeners
-  canvas.addEventListener('mousedown', (e) => handleInput(e.clientX, e.clientY, true));
-  window.addEventListener('mousemove', (e) => { if (state === 'PLAYING') handleInput(e.clientX, e.clientY, false); });
-  canvas.addEventListener('touchstart', (e) => { if (e.touches.length > 0) handleInput(e.touches[0].clientX, e.touches[0].clientY, true); }, { passive: true });
-  window.addEventListener('touchmove', (e) => { if (state === 'PLAYING' && e.touches.length > 0) handleInput(e.touches[0].clientX, e.touches[0].clientY, false); }, { passive: true });
-
-  function createExplosion(x, y, color) {
-    for (let i = 0; i < 8; i++) {
-      particles.push({
-        x: x, y: y,
-        radius: board.bubbleRadius * 0.4,
-        vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6,
-        alpha: 1, color: color
-      });
+  function shiftDown() {
+    if (state !== 'playing') return;
+    for (let c = 0; c < C.COLS; c++) {
+      if (grid[C.ROWS - 1][c] !== null) { go(); return; }
+    }
+    for (let r = C.ROWS - 1; r > 0; r--) grid[r] = grid[r - 1].slice();
+    grid[0] = [];
+    for (let c = 0; c < C.COLS; c++) grid[0].push(rndBubble());
+    renderGrid();
+    for (let c = 0; c < C.COLS; c++) {
+      if (grid[C.ROWS - 1][c] !== null) { go(); return; }
     }
   }
 
-  // Main Loop Game Core
-  function loop() {
-    if (loader.done && state === 'LOADING') {
-      state = 'MENU';
-      loadingScreen.classList.add('hidden');
-      renderer = new Renderer(ctx, loader.images);
-      resize();
+  function setUpCannon(tex) {
+    if (cannon) { cannon.destroy(); cannon = null; }
+    cannon = new PIXI.Sprite(tex);
+    cannon.anchor.set(0.5, 0.5);
+    cannon.x = W / 2;
+    cannon.y = H - 70;
+    const s = 60 / Math.max(tex.width, tex.height);
+    cannon.scale.set(s);
+    cannon.rotation = -Math.PI / 2;
+
+    cannonBase = new PIXI.Graphics();
+    cannonBase.beginFill(0x222244, 0.8);
+    cannonBase.drawCircle(0, 0, 22);
+    cannonBase.endFill();
+    cannonBase.x = cannon.x;
+    cannonBase.y = cannon.y;
+
+    cannonFlash = new PIXI.Graphics();
+    cannonFlash.beginFill(0xffff88, 0.6);
+    cannonFlash.drawCircle(0, 0, 18);
+    cannonFlash.endFill();
+    cannonFlash.x = cannon.x;
+    cannonFlash.y = cannon.y;
+    cannonFlash.visible = false;
+
+    hc.addChild(cannonBase);
+    hc.addChild(cannonFlash);
+    hc.addChild(cannon);
+  }
+
+  function mkHUD() {
+    playingUI = new PIXI.Container();
+
+    const bgBar = new PIXI.Graphics();
+    bgBar.beginFill(0x000000, 0.5);
+    bgBar.drawRoundedRect(0, 0, W, 42, 0);
+    bgBar.endFill();
+    playingUI.addChild(bgBar);
+
+    scoreTxt = new PIXI.Text('Score: 0', { fontFamily: 'Segoe UI, sans-serif', fontSize: 18, fill: '#fff', fontWeight: 'bold', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 3, dropShadowDistance: 1 });
+    scoreTxt.x = 10; scoreTxt.y = 10;
+    playingUI.addChild(scoreTxt);
+
+    levelTxt = new PIXI.Text('Level 1', { fontFamily: 'Segoe UI, sans-serif', fontSize: 16, fill: '#ffd700', fontWeight: 'bold', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 2, dropShadowDistance: 1 });
+    levelTxt.anchor.set(0.5, 0);
+    levelTxt.x = W / 2; levelTxt.y = 11;
+    playingUI.addChild(levelTxt);
+
+    shotsTxt = new PIXI.Text('', { fontFamily: 'Segoe UI, sans-serif', fontSize: 14, fill: '#aaddff', fontWeight: 'bold' });
+    shotsTxt.x = W - 85; shotsTxt.y = 12;
+    playingUI.addChild(shotsTxt);
+
+    nextTxt = new PIXI.Text('Next:', { fontFamily: 'Segoe UI, sans-serif', fontSize: 12, fill: '#aaa', fontWeight: 'bold' });
+    nextTxt.x = W - 85; nextTxt.y = 28;
+    playingUI.addChild(nextTxt);
+
+    hc.addChild(playingUI);
+  }
+
+  function mkMenu(bgTex, playTex) {
+    menuC = new PIXI.Container();
+    bgSpr = new PIXI.Sprite(bgTex);
+    bgSpr.width = W; bgSpr.height = H;
+    menuC.addChild(bgSpr);
+
+    const t = new PIXI.Text('BUBBLE\nSHOOTER', { fontFamily: 'Segoe UI, sans-serif', fontSize: 48, fill: '#fff', fontWeight: '900', align: 'center', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 8, dropShadowDistance: 3, letterSpacing: 3 });
+    t.anchor.set(0.5); t.x = W / 2; t.y = H * 0.28;
+    menuC.addChild(t);
+
+    const b = new PIXI.Sprite(playTex);
+    b.anchor.set(0.5); b.x = W / 2; b.y = H * 0.55;
+    const bs = Math.min(180 / b.width, 180 / b.height);
+    b.scale.set(bs);
+    b.eventMode = 'static'; b.cursor = 'pointer';
+    b.on('pointerdown', () => startGame());
+    menuC.addChild(b);
+
+    const hint = new PIXI.Text('Tap to Play', { fontFamily: 'Segoe UI, sans-serif', fontSize: 16, fill: '#fff', fontWeight: '300', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 3 });
+    hint.anchor.set(0.5); hint.x = W / 2; hint.y = H * 0.66;
+    menuC.addChild(hint);
+
+    oc.addChild(menuC);
+  }
+
+  function mkGameOver() {
+    gameOverUI = new PIXI.Container();
+    const ov = new PIXI.Graphics();
+    ov.beginFill(0x000000, 0.75); ov.drawRect(0, 0, W, H); ov.endFill();
+    gameOverUI.addChild(ov);
+
+    const gt = new PIXI.Text('GAME OVER', { fontFamily: 'Segoe UI, sans-serif', fontSize: 48, fill: '#ff4444', fontWeight: '900', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 8, dropShadowDistance: 3 });
+    gt.anchor.set(0.5); gt.x = W / 2; gt.y = H * 0.30;
+    gameOverUI.addChild(gt);
+
+    const fs = new PIXI.Text('Score: 0', { fontFamily: 'Segoe UI, sans-serif', fontSize: 28, fill: '#ffd700', fontWeight: 'bold' });
+    fs.anchor.set(0.5); fs.x = W / 2; fs.y = H * 0.40; fs.name = 'fs';
+    gameOverUI.addChild(fs);
+
+    const fl = new PIXI.Text('Level 1', { fontFamily: 'Segoe UI, sans-serif', fontSize: 22, fill: '#fff', fontWeight: 'bold' });
+    fl.anchor.set(0.5); fl.x = W / 2; fl.y = H * 0.46; fl.name = 'fl';
+    gameOverUI.addChild(fl);
+
+    const rbg = new PIXI.Graphics();
+    rbg.beginFill(0x4a90d9); rbg.drawRoundedRect(-85, -22, 170, 44, 10); rbg.endFill();
+    rbg.x = W / 2; rbg.y = H * 0.56;
+    rbg.eventMode = 'static'; rbg.cursor = 'pointer';
+    rbg.on('pointerdown', () => restart());
+    gameOverUI.addChild(rbg);
+
+    const rt = new PIXI.Text('RESTART', { fontFamily: 'Segoe UI, sans-serif', fontSize: 20, fill: '#fff', fontWeight: 'bold' });
+    rt.anchor.set(0.5); rt.x = W / 2; rt.y = H * 0.56;
+    gameOverUI.addChild(rt);
+
+    gameOverUI.visible = false;
+    oc.addChild(gameOverUI);
+  }
+
+  function showMenu() {
+    state = 'menu';
+    if (menuC) menuC.visible = true;
+    if (playingUI) playingUI.visible = false;
+    if (gameOverUI) gameOverUI.visible = false;
+    gc.visible = false; tc.visible = false;
+    if (cannonBase) cannonBase.visible = false;
+    if (cannonFlash) cannonFlash.visible = false;
+    if (cannon) cannon.visible = false;
+    proj = null;
+  }
+
+  function startGame() {
+    state = 'playing';
+    score = 0; level = 1; shotsFired = 0; lastShiftShot = 0;
+    proj = null; parts = []; popAnims = [];
+    pc.removeChildren();
+    calcGrid(); buildGrid(); renderGrid();
+    gc.visible = true; tc.visible = true;
+    if (cannonBase) cannonBase.visible = true;
+    if (cannonFlash) cannonFlash.visible = true;
+    if (cannon) cannon.visible = true;
+    canFire = true;
+    nextColor = rndNext();
+    updateHUD();
+    showNextBubble();
+    if (menuC) menuC.visible = false;
+    if (gameOverUI) gameOverUI.visible = false;
+    if (playingUI) playingUI.visible = true;
+  }
+
+  function restart() {
+    if (gameOverUI) gameOverUI.visible = false;
+    startGame();
+  }
+
+  function go() {
+    if (state === 'gameover') return;
+    state = 'gameover';
+    proj = null;
+    canFire = true;
+    if (gameOverUI) {
+      gameOverUI.visible = true;
+      const fs = gameOverUI.getChildByName('fs');
+      if (fs) fs.text = 'Score: ' + score;
+      const fl = gameOverUI.getChildByName('fl');
+      if (fl) fl.text = 'Level ' + level;
     }
+  }
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  function updateHUD() {
+    if (scoreTxt) scoreTxt.text = 'Score: ' + score;
+    if (levelTxt) levelTxt.text = 'Level ' + level;
+    if (shotsTxt) shotsTxt.text = 'Shots: ' + (shotsFired % C.SHOTS_PER_ROW) + '/' + C.SHOTS_PER_ROW;
+  }
 
-    if (renderer) {
-      if (state === 'MENU') renderer.drawMainMenu();
-      else if (state === 'PLAYING' || state === 'GAME_OVER') {
-        renderer.drawBackground();
-        renderer.drawGrid(board);
-        if (state === 'PLAYING') {
-          renderer.drawTrajectory(shooter, canvas.width, board);
-          renderer.drawShooter(shooter);
-        }
+  function showNextBubble() {
+    if (!nextTxt) return;
+    const tex = texForColor(nextColor);
+    if (!tex) return;
+    const s = new PIXI.Sprite(tex);
+    s.anchor.set(0.5);
+    s.scale.set(16 / 28);
+    s.x = W - 22;
+    s.y = 33;
+    nextTxt.text = 'Next:';
+    if (nextTxt._preview) { nextTxt._preview.destroy(); }
+    nextTxt._preview = s;
+    playingUI.addChild(s);
+  }
 
-        // Flying bubble processing
-        if (flyingBubble) {
-          flyingBubble.x += flyingBubble.vx; flyingBubble.y += flyingBubble.vy;
-          renderer.drawBubble(flyingBubble.x, flyingBubble.y, board.bubbleRadius, flyingBubble.color);
+  function updateCannon() {
+    if (!cannon || state !== 'playing') return;
+    const dx = px - cannon.x;
+    const dy = py - cannon.y;
+    let a = Math.atan2(dy, dx);
+    if (a > -0.1) a = -0.1;
+    if (a < -Math.PI + 0.1) a = -Math.PI + 0.1;
+    cannonAngle = a;
+    cannon.rotation = a;
+  }
 
-          // Wall bounces
-          if (flyingBubble.x < board.bubbleRadius) { flyingBubble.x = board.bubbleRadius; flyingBubble.vx *= -1; }
-          if (flyingBubble.x > canvas.width - board.bubbleRadius) { flyingBubble.x = canvas.width - board.bubbleRadius; flyingBubble.vx *= -1; }
+  function drawTraj() {
+    trajGfx.clear();
+    if (state !== 'playing' || !cannon) return;
+    let ax = cannon.x, ay = cannon.y;
+    let adx = Math.cos(cannonAngle), ady = Math.sin(cannonAngle);
+    const step = 8, maxS = 180;
+    const pts = [];
 
-          // Collision handling
-          const gridHit = checkGridCollision(flyingBubble, board);
-          if (gridHit || flyingBubble.y < board.offsetY) {
-            const snap = findSnapPosition(flyingBubble, board);
-            if (snap) {
-              board.grid[snap.row][snap.col] = flyingBubble.color;
-              const matches = findConnected(board, snap.row, snap.col);
-              if (matches.length >= 3) {
-                for (const [r, c] of matches) {
-                  const p = board.getHexPos(r, c);
-                  createExplosion(p.x, p.y, board.grid[r][c]);
-                  board.grid[r][c] = null; score += CONFIG.POP_SCORE;
-                }
-                const floating = findFloating(board);
-                for (const [r, c] of floating) {
-                  const p = board.getHexPos(r, c);
-                  createExplosion(p.x, p.y, board.grid[r][c]);
-                  board.grid[r][c] = null; score += CONFIG.FLOAT_SCORE;
-                }
-              }
-              shotsFired++;
-              if (shotsFired % CONFIG.SHOTS_PER_ROW === 0) {
-                board.shiftDown();
-                if (board.checkGameOver()) state = 'GAME_OVER';
-              }
-            }
-            flyingBubble = null;
-          }
-        }
-
-        // Particles cycle
-        for (let i = particles.length - 1; i >= 0; i--) {
-          const p = particles[i]; p.x += p.vx; p.y += p.vy; p.alpha -= 0.03;
-          if (p.alpha <= 0) particles.splice(i, 1);
-        }
-        renderer.drawParticles(particles);
-        renderer.drawHUD(score, level);
-        if (state === 'GAME_OVER') renderer.drawGameOver(score);
+    for (let i = 0; i < maxS; i++) {
+      ax += adx * step; ay += ady * step;
+      if (ax < wL) { ax = wL + (wL - ax); adx = -adx; }
+      else if (ax > wR) { ax = wR - (ax - wR); adx = -adx; }
+      if (ay < gy - hexR) break;
+      const approx = p2g(ax, ay);
+      let hit = false;
+      for (const n of neighbors(approx.r, approx.c)) {
+        if (grid[n.r][n.c] == null) continue;
+        const p = sPos(n.r, n.c);
+        if (Math.hypot(ax - p.x, ay - p.y) < hexW * 0.75) { hit = true; break; }
       }
+      if (hit) break;
+      pts.push({ x: ax, y: ay });
     }
-    requestAnimationFrame(loop);
+
+    for (let i = 0; i < pts.length; i++) {
+      const a = 0.2 + 0.5 * (1 - i / pts.length);
+      const r = 1.5 + (1 - i / pts.length) * 1.5;
+      trajGfx.beginFill(0xffffff, a);
+      trajGfx.drawCircle(pts[i].x, pts[i].y, r);
+      trajGfx.endFill();
+    }
   }
-  loop();
-});
+
+  function fire() {
+    if (state !== 'playing' || !cannon || !canFire || proj) return;
+    canFire = false;
+    const a = cannonAngle;
+    const cxn = cannon.x + Math.cos(a) * 28;
+    const cyn = cannon.y + Math.sin(a) * 28;
+    proj = {
+      x: cxn, y: cyn,
+      vx: Math.cos(a) * C.SHOOT_SPEED, vy: Math.sin(a) * C.SHOOT_SPEED,
+      color: nextColor, active: true,
+    };
+    const tex = texForColor(proj.color);
+    if (tex) {
+      proj.spr = new PIXI.Sprite(tex);
+      proj.spr.anchor.set(0.5);
+      proj.spr.x = proj.x; proj.spr.y = proj.y;
+      proj.spr.scale.set(hexR / 28);
+      gc.addChild(proj.spr);
+    }
+
+    if (cannonFlash) {
+      cannonFlash.visible = true;
+      cannonFlash.alpha = 1;
+    }
+
+    shotsFired++;
+    nextColor = rndNext();
+    showNextBubble();
+    updateHUD();
+  }
+
+  function snap() {
+    if (!proj) { canFire = true; return; }
+    const slot = closestEmpty(proj.x, proj.y);
+    if (!slot) {
+      if (proj.spr) { gc.removeChild(proj.spr); proj.spr.destroy(); }
+      proj = null;
+      canFire = true;
+      return;
+    }
+    const pos = sPos(slot.r, slot.c);
+    if (proj.spr) {
+      proj.spr.x = pos.x; proj.spr.y = pos.y;
+      gc.removeChild(proj.spr);
+      proj.spr.destroy();
+    }
+    grid[slot.r][slot.c] = proj.color;
+    const tex = texForColor(proj.color);
+    if (tex) {
+      const ns = new PIXI.Sprite(tex);
+      ns.anchor.set(0.5); ns.x = pos.x; ns.y = pos.y;
+      ns.scale.set(hexR / 28);
+      gc.addChild(ns);
+    }
+    proj = null;
+    canFire = true;
+
+    process(slot.r, slot.c);
+
+    if (shotsFired > 0 && shotsFired % C.SHOTS_PER_ROW === 0 && shotsFired !== lastShiftShot) {
+      shiftDown();
+      lastShiftShot = shotsFired;
+    }
+  }
+
+  function process(row, col) {
+    const cl = flood(row, col);
+    if (cl.length >= 3) {
+      const fs = popCl(cl);
+      score += cl.length * C.POP_SCORE + fs;
+      updateHUD();
+      renderGrid();
+      checkGO();
+    }
+    updateHUD();
+  }
+
+  function popCl(cl) {
+    for (const o of cl) {
+      const p = sPos(o.r, o.c);
+      const cv = grid[o.r][o.c];
+      spawnParts(p.x, p.y, cv);
+      grid[o.r][o.c] = null;
+    }
+    const float = findFloat();
+    for (const f of float) {
+      const p = sPos(f.r, f.c);
+      const cv = grid[f.r][f.c];
+      spawnParts(p.x, p.y, cv);
+      spawnFall(p.x, p.y, cv);
+      grid[f.r][f.c] = null;
+    }
+
+    let clearedAll = true;
+    for (let r = 0; r < C.ROWS; r++)
+      for (let c = 0; c < C.COLS; c++)
+        if (grid[r][c] !== null) { clearedAll = false; break; }
+    if (clearedAll) {
+      level++;
+      buildGrid();
+      renderGrid();
+    }
+
+    return float.length * C.FLOAT_SCORE;
+  }
+
+  function spawnFall(x, y, colr) {
+    const tex = texForColor(colr);
+    if (!tex) return;
+    const spr = new PIXI.Sprite(tex);
+    spr.anchor.set(0.5); spr.x = x; spr.y = y;
+    spr.scale.set(hexR / 28); spr.alpha = 1;
+    pc.addChild(spr);
+    popAnims.push({ spr, vx: (rnd() - 0.5) * 3, vy: 2 + rnd() * 3, rot: (rnd() - 0.5) * 0.1, life: 1, decay: 0.008 + rnd() * 0.008 });
+  }
+
+  function checkGO() {
+    for (let c = 0; c < C.COLS; c++) {
+      if (grid[C.ROWS - 1][c] !== null) { go(); return; }
+    }
+  }
+
+  function spawnParts(x, y, colr) {
+    const cnt = Math.min(8, C.MAX_PARTICLES - parts.length);
+    if (cnt <= 0) return;
+    const col = COLOR_VALS[colr] || 0xffffff;
+    for (let i = 0; i < cnt; i++) {
+      const spr = new PIXI.Sprite(pTex);
+      spr.anchor.set(0.5);
+      spr.x = x + (rnd() - 0.5) * 10;
+      spr.y = y + (rnd() - 0.5) * 10;
+      spr.tint = col;
+      spr.scale.set(0.4 + rnd() * 0.4);
+      spr.alpha = 1; spr.rotation = rnd() * Math.PI * 2;
+      pc.addChild(spr);
+      parts.push({ spr, vx: (rnd() - 0.5) * 8, vy: -3 + rnd() * 5, rot: (rnd() - 0.5) * 0.3, life: 1, decay: 0.015 + rnd() * 0.02 });
+    }
+  }
+
+  function updateProj(dt) {
+    if (!proj || !proj.active) return;
+    const p = proj;
+    const steps = 3;
+    for (let s = 0; s < steps; s++) {
+      p.x += p.vx * (dt / steps);
+      p.y += p.vy * (dt / steps);
+      if (p.x < wL) { p.x = wL + (wL - p.x); p.vx = -p.vx; }
+      else if (p.x > wR) { p.x = wR - (p.x - wR); p.vx = -p.vx; }
+      if (p.y < gy - hexR) { snap(); return; }
+      const approx = p2g(p.x, p.y);
+      let hit = false;
+      for (const n of neighbors(approx.r, approx.c)) {
+        if (grid[n.r][n.c] == null) continue;
+        const pos = sPos(n.r, n.c);
+        if (Math.hypot(p.x - pos.x, p.y - pos.y) < hexW * 0.75) { hit = true; break; }
+      }
+      if (hit) { snap(); return; }
+    }
+    if (p.spr) { p.spr.x = p.x; p.spr.y = p.y; p.spr.rotation += 0.05 * dt; }
+  }
+
+  function updateParts(dt) {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      p.spr.x += p.vx * dt; p.spr.y += p.vy * dt;
+      p.spr.rotation += p.rot * dt;
+      p.vy += 0.15 * dt;
+      p.life -= p.decay * dt;
+      p.spr.alpha = Math.max(0, p.life);
+      p.spr.scale.set(p.life * 0.8);
+      if (p.life <= 0) { pc.removeChild(p.spr); p.spr.destroy(); parts.splice(i, 1); }
+    }
+  }
+
+  function updateAnims(dt) {
+    for (let i = popAnims.length - 1; i >= 0; i--) {
+      const a = popAnims[i];
+      a.spr.x += a.vx * dt; a.spr.y += a.vy * dt;
+      a.spr.rotation += a.rot * dt;
+      a.vy += 0.2 * dt;
+      a.life -= a.decay * dt;
+      a.spr.alpha = Math.max(0, a.life);
+      a.spr.scale.set((hexR / 28) * a.life);
+      if (a.life <= 0) { pc.removeChild(a.spr); a.spr.destroy(); popAnims.splice(i, 1); }
+    }
+  }
+
+  function flashUpdate(dt) {
+    if (cannonFlash && cannonFlash.visible) {
+      cannonFlash.alpha -= dt * 0.05;
+      if (cannonFlash.alpha <= 0) cannonFlash.visible = false;
+    }
+  }
+
+  function setupPtr() {
+    app.stage.eventMode = 'static';
+    app.stage.hitArea = new PIXI.Rectangle(0, 0, W, H);
+    app.stage.on('pointermove', e => { px = e.global.x; py = e.global.y; });
+    app.stage.on('pointerdown', e => { px = e.global.x; py = e.global.y; if (state === 'playing') fire(); });
+  }
+
+  function loop(dt) {
+    if (state === 'playing') {
+      updateCannon();
+      drawTraj();
+      updateProj(dt);
+      updateParts(dt);
+      updateAnims(dt);
+      flashUpdate(dt);
+    } else {
+      updateParts(dt);
+      updateAnims(dt);
+    }
+  }
+
+  async function init() {
+    initPixi();
+    mkLoadScreen();
+    setUpLayers();
+    calcGrid();
+    mkPTex();
+    setupPtr();
+    const tex = await loadAssets();
+    bubbleTex = {};
+    for (const bc of C.BUBBLE_COLORS) bubbleTex[bc.name] = tex[bc.name] || tex[Object.keys(tex)[0]];
+    bubbleTex.special = tex.special || bubbleTex[C.BUBBLE_COLORS[0].name];
+    bubbleTex.air = tex.air || bubbleTex[C.BUBBLE_COLORS[0].name];
+    mkMenu(tex.background, tex.premiumPlay);
+    setUpCannon(tex.cannonImg);
+    mkHUD();
+    mkGameOver();
+    if (snd) { snd.destroy(); snd = null; }
+    showMenu();
+    app.ticker.add(d => loop(d));
+  }
+
+  init().catch(console.error);
+})();
