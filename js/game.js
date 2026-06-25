@@ -2,35 +2,37 @@
   const CONFIG = {
     COLS: 8, ROWS: 14, INITIAL_ROWS: 5, SHOOT_SPEED: 18,
     POP_SCORE: 10, FLOAT_SCORE: 25, SHOTS_PER_ROW: 7, NUM_COLORS: 5,
-    IMAGE_PATH: 'asets/new image/',
-    SCORE_BAR_IMAGE: '/home/user/traff-game-/asets/new image/Gemini_Generated_Image_k3tv0xk3tv0xk3tv.png',
+    ATLAS_PATH: 'asets/new image/assets_sheet.json',
+    BACKGROUND_IMAGE: 'asets/new image/backgraund.jpg',
     BUBBLE_COLORS: [
-      { name: 'blue',   file: 'blue boll.png' },
-      { name: 'green',  file: 'green boll.png' },
-      { name: 'purple', file: 'pulpul boll.png' },
-      { name: 'red',    file: 'red boll.png' },
-      { name: 'yellow', file: 'yelloboll.png' },
+      { name: 'blue',   frame: 'blue_bubble' },
+      { name: 'green',  frame: 'green_bubble' },
+      { name: 'purple', frame: 'purple_bubble' },
+      { name: 'red',    frame: 'red_bubble' },
+      { name: 'yellow', frame: 'yellow_bubble' },
     ],
-    BUBBLE_SPECIAL: { name: 'colorful', file: 'colorfull boll.png' },
-    BUBBLE_AIR:     { name: 'air',      file: 'Gemini_Generated_Image_a76ulba76ulba76u.png' },
     COLOR_AIR: 5,
     COLOR_SPECIAL: 6,
     SPECIAL_CHANCE: 0.12,
     AIR_CHANCE: 0.08,
     MAX_PARTICLES: 300,
-    UI: {
-      premiumPlay: 'Gemini_Generated_Image_k3tv0xk3tv0xk3tv.png',
-      back: 'back.png', pause: 'puss .png', play: 'play.png',
+    FRAME_MAP: {
+      special: 'colorful_bubble',
+      air: 'air_bubble',
+      premiumPlay: 'premium_play_btn',
+      backBtn: 'back_btn',
+      pauseBtn: 'pause_btn',
+      cannonPlay: 'cannon_play',
+      scoreBar: 'score_meter_bg',
     },
   };
 
   const W = 540;
   const H = 960;
-  const IMG = CONFIG.IMAGE_PATH;
   const COLOR_VALS = [0x4a90d9, 0x4caf50, 0x9c27b0, 0xf44336, 0xffeb3b, 0xff9800, 0x90a4ae];
 
   let app;
-  let bgSprite, gameContainer, menuContainer;
+  let bgContainer, gameContainer, menuContainer;
   let gridContainer, projContainer, partContainer, trajContainer, hudContainer;
   let grid = [];
   let state = 'menu';
@@ -43,9 +45,9 @@
   let nextColor;
   let scoreTxt, levelTxt, shotsTxt, nextTxt;
   let meterFill, meterPctLabel;
-  let bubbleTextures = {};
   let particleTex;
   let pointerX = W / 2, pointerY = H / 2;
+  let loadingText;
 
   function rnd() { return Math.random(); }
 
@@ -152,10 +154,10 @@
     return float;
   }
 
-  function texForColor(colr) {
-    if (colr >= 0 && colr < CONFIG.NUM_COLORS) return bubbleTextures[CONFIG.BUBBLE_COLORS[colr].name];
-    if (colr === CONFIG.COLOR_SPECIAL) return bubbleTextures.special;
-    if (colr === CONFIG.COLOR_AIR) return bubbleTextures.air;
+  function frameForColor(colr) {
+    if (colr >= 0 && colr < CONFIG.NUM_COLORS) return CONFIG.BUBBLE_COLORS[colr].frame;
+    if (colr === CONFIG.COLOR_SPECIAL) return CONFIG.FRAME_MAP.special;
+    if (colr === CONFIG.COLOR_AIR) return CONFIG.FRAME_MAP.air;
     return null;
   }
 
@@ -169,14 +171,14 @@
   }
 
   function calcGrid() {
-    const margin = 20;
+    const margin = 15; // પેલા બોલ દૂર હતા તેને એકદમ નજીક લાવવા માર્જિન સેટ કર્યું
     const usableW = W - margin * 2;
-    bubbleRadius = usableW / (Math.sqrt(3) * (CONFIG.COLS - 0.5) + 2);
+    bubbleRadius = usableW / (Math.sqrt(3) * (CONFIG.COLS - 0.5) + 1.5);
     hexW = Math.sqrt(3) * bubbleRadius;
-    hexH = bubbleRadius * 1.5;
+    hexH = bubbleRadius * 1.5; // રીઅલ ગેમ જેવી ટાઈટ હેક્સાગોનલ ગ્રીડ સિસ્ટમ
     const gridW = hexW * (CONFIG.COLS - 1) + 2 * bubbleRadius;
     gx = (W - gridW) / 2;
-    gy = 50;
+    gy = 70;
     gTop = gy - bubbleRadius;
     gBot = gy + (CONFIG.ROWS - 1) * hexH + bubbleRadius;
     wL = gx;
@@ -199,12 +201,15 @@
       for (let c = 0; c < CONFIG.COLS; c++) {
         const v = grid[r][c];
         if (v == null) continue;
-        const tex = texForColor(v);
-        if (!tex) continue;
+        const frame = frameForColor(v);
+        if (!frame) continue;
         const p = sPos(r, c);
-        const spr = new PIXI.Sprite(tex);
-        spr.anchor.set(0.5); spr.x = p.x; spr.y = p.y;
-        spr.width = ts; spr.height = ts;
+        const spr = PIXI.Sprite.from(frame);
+        spr.anchor.set(0.5);
+        spr.x = p.x;
+        spr.y = p.y;
+        spr.width = ts;
+        spr.height = ts;
         gridContainer.addChild(spr);
       }
     }
@@ -224,10 +229,10 @@
     }
   }
 
-  function setUpCannon(tex) {
+  function setUpCannon() {
     if (cannon) { cannon.destroy(); cannon = null; }
-    cannon = new PIXI.Sprite(tex);
-    cannon.anchor.set(0.5, 0.5);
+    cannon = PIXI.Sprite.from(CONFIG.FRAME_MAP.cannonPlay);
+    cannon.anchor.set(0.5);
     cannon.x = W / 2;
     cannon.y = H - 70;
     cannon.width = bubbleRadius * 2.4;
@@ -254,7 +259,7 @@
     hudContainer.addChild(cannon);
   }
 
-  function createHUD(textures) {
+  function createHUD() {
     const hud = new PIXI.Container();
 
     const bgBar = new PIXI.Graphics();
@@ -284,26 +289,23 @@
     meterContainer.x = 10;
     meterContainer.y = 46;
 
-    const meterBg = textures.scoreBar
-      ? new PIXI.Sprite(textures.scoreBar)
-      : new PIXI.Graphics();
-    if (textures.scoreBar) {
-      meterBg.width = 120;
-      meterBg.height = 18;
-    } else {
-      meterBg.beginFill(0x333333);
-      meterBg.drawRoundedRect(0, 0, 120, 18, 3);
-      meterBg.endFill();
-    }
-    meterContainer.addChild(meterBg);
+    // જાદુઈ સ્કોર પ્રોગ્રેસ બાર ઈમેજ સેટિંગ
+    const meterBg = PIXI.Sprite.from(CONFIG.FRAME_MAP.scoreBar);
+    meterBg.anchor.set(0, 0);
+    meterBg.x = 0;
+    meterBg.y = 0;
+    meterBg.width = 150;
+    meterBg.height = 24;
 
     meterFill = new PIXI.Graphics();
-    meterFill.x = 2;
-    meterFill.y = 2;
-    meterContainer.addChild(meterFill);
+    meterFill.x = 4;
+    meterFill.y = 4;
 
-    meterPctLabel = new PIXI.Text('0%', { fontFamily: 'Segoe UI, sans-serif', fontSize: 10, fill: '#fff', fontWeight: 'bold' });
-    meterPctLabel.x = 110;
+    meterContainer.addChild(meterFill);
+    meterContainer.addChild(meterBg);
+
+    meterPctLabel = new PIXI.Text('0%', { fontFamily: 'Segoe UI, sans-serif', fontSize: 11, fill: '#fff', fontWeight: 'bold' });
+    meterPctLabel.x = 160;
     meterPctLabel.y = 4;
     meterContainer.addChild(meterPctLabel);
 
@@ -319,8 +321,8 @@
       const meterMax = level * 500;
       const pct = Math.min(1, score / meterMax);
       meterFill.clear();
-      meterFill.beginFill(0x00ff88, 0.85);
-      meterFill.drawRect(0, 0, 116 * pct, 14);
+      meterFill.beginFill(0x00ff88, 0.85); // સ્કોર વધવાની સાથે અંદર જગ્યા ભરાશે
+      meterFill.drawRect(0, 0, 142 * pct, 16);
       meterFill.endFill();
       if (meterPctLabel) meterPctLabel.text = Math.floor(pct * 100) + '%';
     }
@@ -328,10 +330,10 @@
 
   function showNextBubble() {
     if (!nextTxt) return;
-    const tex = texForColor(nextColor);
-    if (!tex) return;
+    const frame = frameForColor(nextColor);
+    if (!frame) return;
     const sz = bubbleRadius * 0.6;
-    const s = new PIXI.Sprite(tex);
+    const s = PIXI.Sprite.from(frame);
     s.anchor.set(0.5);
     s.width = sz; s.height = sz;
     s.x = W - 22;
@@ -399,10 +401,10 @@
       vx: Math.cos(a) * CONFIG.SHOOT_SPEED, vy: Math.sin(a) * CONFIG.SHOOT_SPEED,
       color: nextColor, active: true,
     };
-    const tex = texForColor(proj.color);
-    if (tex) {
+    const frame = frameForColor(proj.color);
+    if (frame) {
       const ts = bubbleRadius * 2;
-      proj.spr = new PIXI.Sprite(tex);
+      proj.spr = PIXI.Sprite.from(frame);
       proj.spr.anchor.set(0.5);
       proj.spr.x = proj.x; proj.spr.y = proj.y;
       proj.spr.width = ts; proj.spr.height = ts;
@@ -436,10 +438,10 @@
       proj.spr.destroy();
     }
     grid[slot.r][slot.c] = proj.color;
-    const tex = texForColor(proj.color);
-    if (tex) {
+    const frame = frameForColor(proj.color);
+    if (frame) {
       const ts = bubbleRadius * 2;
-      const ns = new PIXI.Sprite(tex);
+      const ns = PIXI.Sprite.from(frame);
       ns.anchor.set(0.5); ns.x = pos.x; ns.y = pos.y;
       ns.width = ts; ns.height = ts;
       gridContainer.addChild(ns);
@@ -497,10 +499,10 @@
   }
 
   function spawnFall(x, y, colr) {
-    const tex = texForColor(colr);
-    if (!tex) return;
+    const frame = frameForColor(colr);
+    if (!frame) return;
     const ts = bubbleRadius * 2;
-    const spr = new PIXI.Sprite(tex);
+    const spr = PIXI.Sprite.from(frame);
     spr.anchor.set(0.5); spr.x = x; spr.y = y;
     spr.width = ts; spr.height = ts; spr.alpha = 1;
     partContainer.addChild(spr);
@@ -630,7 +632,7 @@
   }
 
   function initActualGameplayLoop() {
-    console.log("GAME INIT TRIGGERED!");
+    console.log("GAME PLYING LOOP STARTED!");
     state = 'playing';
     score = 0; level = 1; shotsFired = 0; lastShiftShot = 0;
     proj = null; parts = []; popAnims = [];
@@ -642,39 +644,37 @@
     calcGrid();
     buildGrid();
     renderGrid();
-    const premiumTex = bubbleTextures.premiumPlay || bubbleTextures[CONFIG.BUBBLE_COLORS[0].name];
-    setUpCannon(premiumTex);
-    createHUD(bubbleTextures);
+    setUpCannon();
+    createHUD();
     canFire = true;
     nextColor = rndNext();
     showNextBubble();
     updateHUD();
   }
 
-  function createMenu(playTex) {
-    menuContainer = new PIXI.Container();
-
+  function createMenu() {
+    // અહીંથી મેં વધારાનું કન્ટેનર ઇનિશિયલાઇઝેશન હટાવી દીધું છે જેથી કોન્ફ્લિક્ટ ન થાય
     const title = new PIXI.Text('BUBBLE\nSHOOTER', { fontFamily: 'Segoe UI, sans-serif', fontSize: 48, fill: '#fff', fontWeight: '900', align: 'center', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 8, dropShadowDistance: 3, letterSpacing: 3 });
     title.anchor.set(0.5); title.x = W / 2; title.y = H * 0.28;
     menuContainer.addChild(title);
 
-    const playButton = new PIXI.Sprite(playTex);
+    const playButton = PIXI.Sprite.from(CONFIG.FRAME_MAP.premiumPlay);
     playButton.anchor.set(0.5);
     playButton.x = W / 2;
     playButton.y = H * 0.55;
+    
     const btnSize = Math.min(W * 0.4, 140);
     playButton.width = btnSize;
     playButton.height = btnSize;
     playButton.eventMode = 'static';
     playButton.cursor = 'pointer';
-    playButton.hitArea = new PIXI.Rectangle(
-      -playButton.texture.orig.width / 2,
-      -playButton.texture.orig.height / 2,
-      playButton.texture.orig.width,
-      playButton.texture.orig.height
-    );
+    
+    // બગ ફિક્સ: ઓરિજિનલ વિડ્થ શૂન્ય હોવાથી, આપણે ડાયરેક્ટ બટનની સાઇઝ પરથી ચોક્કસ હિટ એરિયા બનાવ્યો
+    playButton.hitArea = new PIXI.Rectangle(-btnSize, -btnSize, btnSize * 2, btnSize * 2);
+    
     playButton.on('pointerdown', (e) => {
-      console.log("GAME INIT TRIGGERED!");
+      e.stopPropagation(); // ઇવેન્ટને અટકાવવા
+      console.log("MOUSE CLICK: GAME INIT TRIGGERED!");
       menuContainer.visible = false;
       menuContainer.interactiveChildren = false;
       gameContainer.visible = true;
@@ -682,11 +682,9 @@
     });
     menuContainer.addChild(playButton);
 
-    const hint = new PIXI.Text('Tap to Play', { fontFamily: 'Segoe UI, sans-serif', fontSize: 16, fill: '#fff', fontWeight: '300', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 3 });
+    const hint = new PIXI.Text('Press "N" Key or Tap to Play', { fontFamily: 'Segoe UI, sans-serif', fontSize: 16, fill: '#fff', fontWeight: '300', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 3 });
     hint.anchor.set(0.5); hint.x = W / 2; hint.y = H * 0.66;
     menuContainer.addChild(hint);
-
-    app.stage.addChild(menuContainer);
   }
 
   function loop(dt) {
@@ -703,44 +701,6 @@
     }
   }
 
-  function buildManifest() {
-    const m = { background: 'backgraund.jpg' };
-    for (const bc of CONFIG.BUBBLE_COLORS) m[bc.name] = IMG + bc.file;
-    m.special = IMG + CONFIG.BUBBLE_SPECIAL.file;
-    m.air = IMG + CONFIG.BUBBLE_AIR.file;
-    m.premiumPlay = IMG + CONFIG.UI.premiumPlay;
-    m.backBtn = IMG + CONFIG.UI.back;
-    m.pauseBtn = IMG + CONFIG.UI.pause;
-    m.playBtn = IMG + CONFIG.UI.play;
-    m.scoreBar = IMG + CONFIG.UI.premiumPlay;
-    return m;
-  }
-
-  async function loadAllAssets() {
-    const manifest = buildManifest();
-    const keys = Object.keys(manifest);
-    let loaded = 0;
-    const results = {};
-    for (const key of keys) {
-      try {
-        results[key] = await PIXI.Assets.load(manifest[key]);
-      } catch (e) {
-        console.warn('Load fail:', manifest[key], e);
-        const g = new PIXI.Graphics();
-        g.beginFill(COLOR_VALS[loaded % COLOR_VALS.length] || 0xffffff);
-        g.drawCircle(0, 0, 28);
-        g.endFill();
-        results[key] = app.renderer.generateTexture(g);
-        g.destroy();
-      }
-      loaded++;
-      if (loadingText) loadingText.text = 'Loading ' + Math.floor((loaded / keys.length) * 100) + '%';
-    }
-    return results;
-  }
-
-  let loadingText;
-
   function mkParticleTex() {
     const g = new PIXI.Graphics();
     g.beginFill(0xffffff); g.drawCircle(0, 0, 8); g.endFill();
@@ -749,43 +709,70 @@
   }
 
   async function init() {
-    app = new PIXI.Application({ width: W, height: H, backgroundColor: 0x0a0a1a, antialias: true, resolution: Math.min(window.devicePixelRatio || 1, 2), autoDensity: true });
+    app = new PIXI.Application({
+      width: W, height: H,
+      backgroundColor: 0x0a0a1a,
+      antialias: true,
+      resolution: Math.min(window.devicePixelRatio || 1, 2),
+      autoDensity: true,
+    });
     document.getElementById('game-container').appendChild(app.view);
     window.addEventListener('resize', resize);
     resize();
 
-    loadingText = new PIXI.Text('Loading 0%', { fontFamily: 'Segoe UI, sans-serif', fontSize: 32, fill: '#fff', fontWeight: 'bold' });
-    loadingText.anchor.set(0.5); loadingText.x = W / 2; loadingText.y = H / 2;
+    loadingText = new PIXI.Text('Loading 0%', {
+      fontFamily: 'Segoe UI, sans-serif',
+      fontSize: 32, fill: '#fff', fontWeight: 'bold',
+    });
+    loadingText.anchor.set(0.5);
+    loadingText.x = W / 2;
+    loadingText.y = H / 2;
     app.stage.addChild(loadingText);
+
+    // ટ્રાય-કેચ બ્લોક ઉમેર્યો જેથી એરર આવે તો પણ સ્ક્રીન લોડ થઈ જાય
+    try {
+      const assetsToLoad = [CONFIG.BACKGROUND_IMAGE, CONFIG.ATLAS_PATH];
+      let loadedCount = 0;
+      for (const asset of assetsToLoad) {
+        await PIXI.Assets.load(asset);
+        loadedCount++;
+        if (loadingText) {
+          loadingText.text = 'Loading ' + Math.floor((loadedCount / assetsToLoad.length) * 100) + '%';
+        }
+      }
+    } catch (err) {
+      console.error("એસેટ્સ લોડ કરવામાં લોચો છે ભાઈ!: ", err);
+    }
+
+    if (loadingText) {
+      loadingText.destroy();
+      loadingText = null;
+    }
 
     mkParticleTex();
 
-    const textures = await loadAllAssets();
-    bubbleTextures = {};
-    for (const bc of CONFIG.BUBBLE_COLORS) bubbleTextures[bc.name] = textures[bc.name] || textures[Object.keys(textures)[0]];
-    bubbleTextures.special = textures.special || bubbleTextures[CONFIG.BUBBLE_COLORS[0].name];
-    bubbleTextures.air = textures.air || bubbleTextures[CONFIG.BUBBLE_COLORS[0].name];
-    bubbleTextures.premiumPlay = textures.premiumPlay;
-    bubbleTextures.scoreBar = textures.scoreBar;
-
-    loadingText.destroy();
-    loadingText = null;
-
-    bgSprite = new PIXI.Sprite(textures.background);
-    bgSprite.width = app.screen.width;
-    bgSprite.height = app.screen.height;
-
+    bgContainer = new PIXI.Container();
     gameContainer = new PIXI.Container();
     gameContainer.visible = false;
+    menuContainer = new PIXI.Container();
 
-    app.stage.addChild(bgSprite);
+    app.stage.addChild(bgContainer);
     app.stage.addChild(gameContainer);
+    app.stage.addChild(menuContainer);
+
+    try {
+      const bg = PIXI.Sprite.from(CONFIG.BACKGROUND_IMAGE);
+      bg.width = app.screen.width;
+      bg.height = app.screen.height;
+      bgContainer.addChild(bg);
+    } catch(e) { console.log("બેકગ્રાઉન્ડ ઈમેજ નથી મળતી"); }
 
     gridContainer = new PIXI.Container();
     projContainer = new PIXI.Container();
     partContainer = new PIXI.Container();
     trajContainer = new PIXI.Container();
     hudContainer = new PIXI.Container();
+
     gameContainer.addChild(gridContainer);
     gameContainer.addChild(partContainer);
     gameContainer.addChild(projContainer);
@@ -804,8 +791,20 @@
     });
     gameContainer.addChild(ptrLayer);
 
-    const menuTex = textures.premiumPlay || textures.playBtn;
-    createMenu(menuTex);
+    createMenu();
+
+    // ગ્લોબલ લિસનર વિન્ડો પર કમ્પલસરી ટ્રીગર થશે
+    window.addEventListener('keydown', (event) => {
+      console.log("તમે કીબોર્ડ પર કી દબાવી: ", event.key);
+      if (event.key.toLowerCase() === 'n') {
+        console.log("ફોર્સ સ્ટાર્ટિંગ ગેમ...");
+        state = 'playing';
+        menuContainer.visible = false;
+        menuContainer.interactiveChildren = false;
+        gameContainer.visible = true;
+        initActualGameplayLoop();
+      }
+    });
 
     app.ticker.add(d => loop(d));
   }
