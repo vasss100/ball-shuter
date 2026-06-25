@@ -280,6 +280,7 @@
 
   function renderGrid() {
     gc.removeChildren(true);
+    const ts = hexR * 2;
     for (let r = 0; r < C.ROWS; r++) {
       for (let c = 0; c < C.COLS; c++) {
         const v = grid[r][c];
@@ -289,7 +290,7 @@
         const p = sPos(r, c);
         const spr = new PIXI.Sprite(tex);
         spr.anchor.set(0.5); spr.x = p.x; spr.y = p.y;
-        spr.scale.set(hexR / 28);
+        spr.width = ts; spr.height = ts;
         gc.addChild(spr);
       }
     }
@@ -315,8 +316,8 @@
     cannon.anchor.set(0.5, 0.5);
     cannon.x = W / 2;
     cannon.y = H - 70;
-    const s = 60 / Math.max(tex.width, tex.height);
-    cannon.scale.set(s);
+    cannon.width = hexR * 2.4;
+    cannon.height = hexR * 2.4;
     cannon.rotation = -Math.PI / 2;
 
     cannonBase = new PIXI.Graphics();
@@ -371,7 +372,8 @@
   function mkMenu(bgTex, playTex) {
     menuC = new PIXI.Container();
     bgSpr = new PIXI.Sprite(bgTex);
-    bgSpr.width = W; bgSpr.height = H;
+    bgSpr.width = app.screen.width;
+    bgSpr.height = app.screen.height;
     menuC.addChild(bgSpr);
 
     const t = new PIXI.Text('BUBBLE\nSHOOTER', { fontFamily: 'Segoe UI, sans-serif', fontSize: 48, fill: '#fff', fontWeight: '900', align: 'center', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 8, dropShadowDistance: 3, letterSpacing: 3 });
@@ -382,9 +384,8 @@
     b.anchor.set(0.5);
     b.x = W / 2;
     b.y = H * 0.55;
-    const sw = Math.max(1, b.width || 1);
-    const sh = Math.max(1, b.height || 1);
-    b.scale.set(Math.min(180 / sw, 180 / sh));
+    const btnSize = Math.min(W * 0.4, 140);
+    b.width = btnSize; b.height = btnSize;
     b.eventMode = 'static';
     b.cursor = 'pointer';
     const onPlay = () => {
@@ -495,9 +496,10 @@
     if (!nextTxt) return;
     const tex = texForColor(nextColor);
     if (!tex) return;
+    const sz = hexR * 0.6;
     const s = new PIXI.Sprite(tex);
     s.anchor.set(0.5);
-    s.scale.set(16 / 28);
+    s.width = sz; s.height = sz;
     s.x = W - 22;
     s.y = 33;
     nextTxt.text = 'Next:';
@@ -563,10 +565,11 @@
     };
     const tex = texForColor(proj.color);
     if (tex) {
+      const ts = hexR * 2;
       proj.spr = new PIXI.Sprite(tex);
       proj.spr.anchor.set(0.5);
       proj.spr.x = proj.x; proj.spr.y = proj.y;
-      proj.spr.scale.set(hexR / 28);
+      proj.spr.width = ts; proj.spr.height = ts;
       gc.addChild(proj.spr);
     }
 
@@ -599,9 +602,10 @@
     grid[slot.r][slot.c] = proj.color;
     const tex = texForColor(proj.color);
     if (tex) {
+      const ts = hexR * 2;
       const ns = new PIXI.Sprite(tex);
       ns.anchor.set(0.5); ns.x = pos.x; ns.y = pos.y;
-      ns.scale.set(hexR / 28);
+      ns.width = ts; ns.height = ts;
       gc.addChild(ns);
     }
     proj = null;
@@ -659,11 +663,12 @@
   function spawnFall(x, y, colr) {
     const tex = texForColor(colr);
     if (!tex) return;
+    const ts = hexR * 2;
     const spr = new PIXI.Sprite(tex);
     spr.anchor.set(0.5); spr.x = x; spr.y = y;
-    spr.scale.set(hexR / 28); spr.alpha = 1;
+    spr.width = ts; spr.height = ts; spr.alpha = 1;
     pc.addChild(spr);
-    popAnims.push({ spr, vx: (rnd() - 0.5) * 3, vy: 2 + rnd() * 3, rot: (rnd() - 0.5) * 0.1, life: 1, decay: 0.008 + rnd() * 0.008 });
+    popAnims.push({ spr, ts, vx: (rnd() - 0.5) * 3, vy: 2 + rnd() * 3, rot: (rnd() - 0.5) * 0.1, life: 1, decay: 0.008 + rnd() * 0.008 });
   }
 
   function checkGO() {
@@ -732,7 +737,8 @@
       a.vy += 0.2 * dt;
       a.life -= a.decay * dt;
       a.spr.alpha = Math.max(0, a.life);
-      a.spr.scale.set((hexR / 28) * a.life);
+      const s = a.life * a.ts;
+      a.spr.width = s; a.spr.height = s;
       if (a.life <= 0) { pc.removeChild(a.spr); a.spr.destroy(); popAnims.splice(i, 1); }
     }
   }
