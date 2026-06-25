@@ -1,19 +1,9 @@
 (() => {
-  const C = {
-    COLS: 8,
-    ROWS: 14,
-    INITIAL_ROWS: 5,
-    SHOOT_SPEED: 18,
-    POP_SCORE: 10,
-    FLOAT_SCORE: 25,
-    SHOTS_PER_ROW: 7,
-    NUM_COLORS: 5,
-    COLOR_SPECIAL: 5,
-    COLOR_AIR: 6,
-    SPECIAL_CHANCE: 0.12,
-    AIR_CHANCE: 0.08,
-    MAX_PARTICLES: 300,
+  const CONFIG = {
+    COLS: 8, ROWS: 14, INITIAL_ROWS: 5, SHOOT_SPEED: 18,
+    POP_SCORE: 10, FLOAT_SCORE: 25, SHOTS_PER_ROW: 7, NUM_COLORS: 5,
     IMAGE_PATH: 'asets/new image/',
+    SCORE_BAR_IMAGE: '/home/user/traff-game-/asets/new image/Gemini_Generated_Image_k3tv0xk3tv0xk3tv.png',
     BUBBLE_COLORS: [
       { name: 'blue',   file: 'blue boll.png' },
       { name: 'green',  file: 'green boll.png' },
@@ -23,55 +13,54 @@
     ],
     BUBBLE_SPECIAL: { name: 'colorful', file: 'colorfull boll.png' },
     BUBBLE_AIR:     { name: 'air',      file: 'Gemini_Generated_Image_a76ulba76ulba76u.png' },
+    COLOR_AIR: 5,
+    COLOR_SPECIAL: 6,
+    SPECIAL_CHANCE: 0.12,
+    AIR_CHANCE: 0.08,
+    MAX_PARTICLES: 300,
     UI: {
       premiumPlay: 'Gemini_Generated_Image_k3tv0xk3tv0xk3tv.png',
-      back: 'back.png',
-      pause: 'puss .png',
-      play: 'play.png',
+      back: 'back.png', pause: 'puss .png', play: 'play.png',
     },
   };
 
   const W = 540;
   const H = 960;
-  const IMG = C.IMAGE_PATH;
+  const IMG = CONFIG.IMAGE_PATH;
   const COLOR_VALS = [0x4a90d9, 0x4caf50, 0x9c27b0, 0xf44336, 0xffeb3b, 0xff9800, 0x90a4ae];
 
-  let app, gc, pc, hc, oc, tc;
+  let app;
+  let bgSprite, gameContainer, menuContainer;
+  let gridContainer, projContainer, partContainer, trajContainer, hudContainer;
   let grid = [];
+  let state = 'menu';
   let score = 0, level = 1, shotsFired = 0, lastShiftShot = 0;
-  let hexW, hexH, hexR, gx, gy, gTop, gBot, wL, wR;
-  let cannon, cannonAngle, cannonBase, cannonFlash;
+  let bubbleRadius, hexW, hexH, gx, gy, gTop, gBot, wL, wR;
+  let cannon, cannonAngle, cannonFlash;
   let proj = null;
-  let parts = [];
-  let trajGfx;
-  let state = 'loading';
-  let px = W / 2, py = H / 2;
-  let scoreTxt, levelTxt, shotsTxt, nextTxt;
-  let menuC, playingUI, gameOverUI;
-  let bubbleTex = {};
-  let pTex;
-  let gameBg;
+  let parts = [], popAnims = [];
   let canFire = true;
   let nextColor;
-  let popAnims = [];
-  let snd = null;
-  let meterFill, meterMax = 1000;
-  let premiumTex;
+  let scoreTxt, levelTxt, shotsTxt, nextTxt;
+  let meterFill, meterPctLabel;
+  let bubbleTextures = {};
+  let particleTex;
+  let pointerX = W / 2, pointerY = H / 2;
 
   function rnd() { return Math.random(); }
 
   function rndBubble() {
     const r = rnd();
-    if (r < C.AIR_CHANCE) return C.COLOR_AIR;
-    if (r < C.AIR_CHANCE + C.SPECIAL_CHANCE) return C.COLOR_SPECIAL;
-    return Math.floor(rnd() * C.NUM_COLORS);
+    if (r < CONFIG.AIR_CHANCE) return CONFIG.COLOR_AIR;
+    if (r < CONFIG.AIR_CHANCE + CONFIG.SPECIAL_CHANCE) return CONFIG.COLOR_SPECIAL;
+    return Math.floor(rnd() * CONFIG.NUM_COLORS);
   }
 
   function rndNext() {
     const r = rnd();
-    if (r < C.AIR_CHANCE) return C.COLOR_AIR;
-    if (r < C.AIR_CHANCE + C.SPECIAL_CHANCE) return C.COLOR_SPECIAL;
-    return Math.floor(rnd() * C.NUM_COLORS);
+    if (r < CONFIG.AIR_CHANCE) return CONFIG.COLOR_AIR;
+    if (r < CONFIG.AIR_CHANCE + CONFIG.SPECIAL_CHANCE) return CONFIG.COLOR_SPECIAL;
+    return Math.floor(rnd() * CONFIG.NUM_COLORS);
   }
 
   function neighbors(row, col) {
@@ -81,7 +70,7 @@
     const o = [];
     for (const [dr, dc] of dirs) {
       const r = row + dr, c = col + dc;
-      if (r >= 0 && r < C.ROWS && c >= 0 && c < C.COLS) o.push({r, c});
+      if (r >= 0 && r < CONFIG.ROWS && c >= 0 && c < CONFIG.COLS) o.push({ r, c });
     }
     return o;
   }
@@ -94,7 +83,7 @@
     const row = Math.round((py_ - gy) / hexH);
     const off = row % 2 === 1 ? hexW / 2 : 0;
     const col = Math.round((px_ - gx - off) / hexW);
-    return { r: Math.max(0, Math.min(C.ROWS - 1, row)), c: Math.max(0, Math.min(C.COLS - 1, col)) };
+    return { r: Math.max(0, Math.min(CONFIG.ROWS - 1, row)), c: Math.max(0, Math.min(CONFIG.COLS - 1, col)) };
   }
 
   function closestEmpty(px_, py_) {
@@ -102,7 +91,7 @@
     const cands = [a, ...neighbors(a.r, a.c)];
     let best = null, bd = Infinity;
     for (const o of cands) {
-      if (o.r < 0 || o.r >= C.ROWS || o.c < 0 || o.c >= C.COLS) continue;
+      if (o.r < 0 || o.r >= CONFIG.ROWS || o.c < 0 || o.c >= CONFIG.COLS) continue;
       if (grid[o.r][o.c] !== null) continue;
       const p = sPos(o.r, o.c);
       const d = Math.hypot(px_ - p.x, py_ - p.y);
@@ -113,17 +102,17 @@
 
   function cMatch(a, b) {
     if (a == null || b == null) return false;
-    if (a === C.COLOR_AIR || b === C.COLOR_AIR) return false;
-    if (a === C.COLOR_SPECIAL || b === C.COLOR_SPECIAL) return true;
+    if (a === CONFIG.COLOR_AIR || b === CONFIG.COLOR_AIR) return false;
+    if (a === CONFIG.COLOR_SPECIAL || b === CONFIG.COLOR_SPECIAL) return true;
     return a === b;
   }
 
   function flood(row, col) {
     const colr = grid[row][col];
-    if (colr == null || colr === C.COLOR_AIR) return [];
+    if (colr == null || colr === CONFIG.COLOR_AIR) return [];
     const vis = new Set();
     const cl = [];
-    const q = [{r: row, c: col}];
+    const q = [{ r: row, c: col }];
     while (q.length) {
       const cur = q.shift();
       const k = cur.r + ',' + cur.c;
@@ -143,8 +132,8 @@
   function findFloat() {
     const vis = new Set();
     const q = [];
-    for (let c = 0; c < C.COLS; c++) {
-      if (grid[0][c] != null) { q.push({r: 0, c}); vis.add('0,' + c); }
+    for (let c = 0; c < CONFIG.COLS; c++) {
+      if (grid[0][c] != null) { q.push({ r: 0, c }); vis.add('0,' + c); }
     }
     while (q.length) {
       const cur = q.shift();
@@ -157,16 +146,16 @@
       }
     }
     const float = [];
-    for (let r = 0; r < C.ROWS; r++)
-      for (let c = 0; c < C.COLS; c++)
-        if (grid[r][c] != null && !vis.has(r + ',' + c)) float.push({r, c});
+    for (let r = 0; r < CONFIG.ROWS; r++)
+      for (let c = 0; c < CONFIG.COLS; c++)
+        if (grid[r][c] != null && !vis.has(r + ',' + c)) float.push({ r, c });
     return float;
   }
 
   function texForColor(colr) {
-    if (colr >= 0 && colr < C.NUM_COLORS) return bubbleTex[C.BUBBLE_COLORS[colr].name];
-    if (colr === C.COLOR_SPECIAL) return bubbleTex.special;
-    if (colr === C.COLOR_AIR) return bubbleTex.air;
+    if (colr >= 0 && colr < CONFIG.NUM_COLORS) return bubbleTextures[CONFIG.BUBBLE_COLORS[colr].name];
+    if (colr === CONFIG.COLOR_SPECIAL) return bubbleTextures.special;
+    if (colr === CONFIG.COLOR_AIR) return bubbleTextures.air;
     return null;
   }
 
@@ -179,115 +168,35 @@
     app.view.style.cssText = `position:absolute;width:${w}px;height:${h}px;left:${Math.floor((mw-w)/2)}px;top:${Math.floor((mh-h)/2)}px`;
   }
 
-  function initPixi() {
-    app = new PIXI.Application({ width: W, height: H, backgroundColor: 0x0a0a1a, antialias: true, resolution: Math.min(window.devicePixelRatio || 1, 2), autoDensity: true });
-    document.getElementById('game-container').appendChild(app.view);
-    window.addEventListener('resize', resize);
-    resize();
-  }
-
-  function mkLoadScreen() {
-    snd = new PIXI.Text('Loading 0%', { fontFamily: 'Segoe UI, sans-serif', fontSize: 32, fill: '#fff', fontWeight: 'bold' });
-    snd.anchor.set(0.5); snd.x = W / 2; snd.y = H / 2;
-    app.stage.addChild(snd);
-  }
-
-  function buildManifest() {
-    const m = { background: 'backgraund.jpg' };
-    for (const bc of C.BUBBLE_COLORS) m[bc.name] = IMG + bc.file;
-    m.special = IMG + C.BUBBLE_SPECIAL.file;
-    m.air = IMG + C.BUBBLE_AIR.file;
-    m.premiumPlay = IMG + C.UI.premiumPlay;
-    m.backBtn = IMG + C.UI.back;
-    m.pauseBtn = IMG + C.UI.pause;
-    m.cannonImg = IMG + C.UI.premiumPlay;
-    m.playBtn = IMG + C.UI.play;
-    return m;
-  }
-
-  async function loadAssets() {
-    const manifest = buildManifest();
-    const keys = Object.keys(manifest);
-    let loaded = 0;
-    const results = {};
-    for (const key of keys) {
-      try {
-        results[key] = await PIXI.Assets.load(manifest[key]);
-      } catch (e) {
-        console.warn('Load fail:', manifest[key], e);
-        const g = new PIXI.Graphics();
-        g.beginFill(COLOR_VALS[loaded % COLOR_VALS.length] || 0xffffff);
-        g.drawCircle(0, 0, 28);
-        g.endFill();
-        results[key] = app.renderer.generateTexture(g);
-        g.destroy();
-      }
-      loaded++;
-      if (snd) snd.text = 'Loading ' + Math.floor((loaded / keys.length) * 100) + '%';
-    }
-    return results;
-  }
-
-  function mkPTex() {
-    const g = new PIXI.Graphics();
-    g.beginFill(0xffffff); g.drawCircle(0, 0, 8); g.endFill();
-    pTex = app.renderer.generateTexture(g);
-    g.destroy();
-  }
-
-  function setUpLayers() {
-    const ptrBg = new PIXI.Graphics();
-    ptrBg.beginFill(0x000000, 0.001);
-    ptrBg.drawRect(0, 0, W, H);
-    ptrBg.endFill();
-    ptrBg.eventMode = 'static';
-    ptrBg.on('pointermove', e => { px = e.global.x; py = e.global.y; });
-    ptrBg.on('pointerdown', e => { px = e.global.x; py = e.global.y; if (state === 'playing') fire(); });
-
-    gc = new PIXI.Container();
-    pc = new PIXI.Container();
-    tc = new PIXI.Container();
-    hc = new PIXI.Container();
-    oc = new PIXI.Container();
-    app.stage.addChild(ptrBg);
-    app.stage.addChild(gc);
-    app.stage.addChild(pc);
-    app.stage.addChild(tc);
-    app.stage.addChild(hc);
-    app.stage.addChild(oc);
-    trajGfx = new PIXI.Graphics();
-    tc.addChild(trajGfx);
-  }
-
   function calcGrid() {
     const margin = 20;
     const usableW = W - margin * 2;
-    hexR = usableW / (Math.sqrt(3) * (C.COLS - 0.5) + 2);
-    hexW = Math.sqrt(3) * hexR;
-    hexH = hexR * 1.5;
-    const gridW = hexW * (C.COLS - 1) + 2 * hexR;
+    bubbleRadius = usableW / (Math.sqrt(3) * (CONFIG.COLS - 0.5) + 2);
+    hexW = Math.sqrt(3) * bubbleRadius;
+    hexH = bubbleRadius * 1.5;
+    const gridW = hexW * (CONFIG.COLS - 1) + 2 * bubbleRadius;
     gx = (W - gridW) / 2;
     gy = 50;
-    gTop = gy - hexR;
-    gBot = gy + (C.ROWS - 1) * hexH + hexR;
+    gTop = gy - bubbleRadius;
+    gBot = gy + (CONFIG.ROWS - 1) * hexH + bubbleRadius;
     wL = gx;
-    wR = gx + hexW * (C.COLS - 1) + 2 * hexR;
+    wR = gx + hexW * (CONFIG.COLS - 1) + 2 * bubbleRadius;
   }
 
   function buildGrid() {
     grid = [];
-    for (let r = 0; r < C.ROWS; r++) {
+    for (let r = 0; r < CONFIG.ROWS; r++) {
       const row = [];
-      for (let c = 0; c < C.COLS; c++) row.push(r < C.INITIAL_ROWS ? rndBubble() : null);
+      for (let c = 0; c < CONFIG.COLS; c++) row.push(r < CONFIG.INITIAL_ROWS ? rndBubble() : null);
       grid.push(row);
     }
   }
 
   function renderGrid() {
-    gc.removeChildren(true);
-    const ts = hexR * 2;
-    for (let r = 0; r < C.ROWS; r++) {
-      for (let c = 0; c < C.COLS; c++) {
+    gridContainer.removeChildren(true);
+    const ts = bubbleRadius * 2;
+    for (let r = 0; r < CONFIG.ROWS; r++) {
+      for (let c = 0; c < CONFIG.COLS; c++) {
         const v = grid[r][c];
         if (v == null) continue;
         const tex = texForColor(v);
@@ -296,22 +205,22 @@
         const spr = new PIXI.Sprite(tex);
         spr.anchor.set(0.5); spr.x = p.x; spr.y = p.y;
         spr.width = ts; spr.height = ts;
-        gc.addChild(spr);
+        gridContainer.addChild(spr);
       }
     }
   }
 
   function shiftDown() {
     if (state !== 'playing') return;
-    for (let c = 0; c < C.COLS; c++) {
-      if (grid[C.ROWS - 1][c] !== null) { go(); return; }
+    for (let c = 0; c < CONFIG.COLS; c++) {
+      if (grid[CONFIG.ROWS - 1][c] !== null) { showGameOver(); return; }
     }
-    for (let r = C.ROWS - 1; r > 0; r--) grid[r] = grid[r - 1].slice();
+    for (let r = CONFIG.ROWS - 1; r > 0; r--) grid[r] = grid[r - 1].slice();
     grid[0] = [];
-    for (let c = 0; c < C.COLS; c++) grid[0].push(rndBubble());
+    for (let c = 0; c < CONFIG.COLS; c++) grid[0].push(rndBubble());
     renderGrid();
-    for (let c = 0; c < C.COLS; c++) {
-      if (grid[C.ROWS - 1][c] !== null) { go(); return; }
+    for (let c = 0; c < CONFIG.COLS; c++) {
+      if (grid[CONFIG.ROWS - 1][c] !== null) { showGameOver(); return; }
     }
   }
 
@@ -321,16 +230,9 @@
     cannon.anchor.set(0.5, 0.5);
     cannon.x = W / 2;
     cannon.y = H - 70;
-    cannon.width = hexR * 2.4;
-    cannon.height = hexR * 2.4;
+    cannon.width = bubbleRadius * 2.4;
+    cannon.height = bubbleRadius * 2.4;
     cannon.rotation = -Math.PI / 2;
-
-    cannonBase = new PIXI.Graphics();
-    cannonBase.beginFill(0x222244, 0.8);
-    cannonBase.drawCircle(0, 0, 22);
-    cannonBase.endFill();
-    cannonBase.x = cannon.x;
-    cannonBase.y = cannon.y;
 
     cannonFlash = new PIXI.Graphics();
     cannonFlash.beginFill(0xffff88, 0.6);
@@ -340,205 +242,87 @@
     cannonFlash.y = cannon.y;
     cannonFlash.visible = false;
 
-    hc.addChild(cannonBase);
-    hc.addChild(cannonFlash);
-    hc.addChild(cannon);
+    const base = new PIXI.Graphics();
+    base.beginFill(0x222244, 0.8);
+    base.drawCircle(0, 0, 22);
+    base.endFill();
+    base.x = cannon.x;
+    base.y = cannon.y;
+
+    hudContainer.addChild(base);
+    hudContainer.addChild(cannonFlash);
+    hudContainer.addChild(cannon);
   }
 
-  function mkHUD() {
-    playingUI = new PIXI.Container();
+  function createHUD(textures) {
+    const hud = new PIXI.Container();
 
     const bgBar = new PIXI.Graphics();
     bgBar.beginFill(0x000000, 0.5);
     bgBar.drawRoundedRect(0, 0, W, 42, 0);
     bgBar.endFill();
-    playingUI.addChild(bgBar);
+    hud.addChild(bgBar);
 
     scoreTxt = new PIXI.Text('Score: 0', { fontFamily: 'Segoe UI, sans-serif', fontSize: 18, fill: '#fff', fontWeight: 'bold', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 3, dropShadowDistance: 1 });
     scoreTxt.x = 10; scoreTxt.y = 10;
-    playingUI.addChild(scoreTxt);
+    hud.addChild(scoreTxt);
 
     levelTxt = new PIXI.Text('Level 1', { fontFamily: 'Segoe UI, sans-serif', fontSize: 16, fill: '#ffd700', fontWeight: 'bold', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 2, dropShadowDistance: 1 });
     levelTxt.anchor.set(0.5, 0);
     levelTxt.x = W / 2; levelTxt.y = 11;
-    playingUI.addChild(levelTxt);
+    hud.addChild(levelTxt);
 
     shotsTxt = new PIXI.Text('', { fontFamily: 'Segoe UI, sans-serif', fontSize: 14, fill: '#aaddff', fontWeight: 'bold' });
     shotsTxt.x = W - 85; shotsTxt.y = 12;
-    playingUI.addChild(shotsTxt);
+    hud.addChild(shotsTxt);
 
     nextTxt = new PIXI.Text('Next:', { fontFamily: 'Segoe UI, sans-serif', fontSize: 12, fill: '#aaa', fontWeight: 'bold' });
     nextTxt.x = W - 85; nextTxt.y = 28;
-    playingUI.addChild(nextTxt);
+    hud.addChild(nextTxt);
 
-    if (premiumTex) {
-      const meterContainer = new PIXI.Container();
-      meterContainer.x = 10;
-      meterContainer.y = 46;
+    const meterContainer = new PIXI.Container();
+    meterContainer.x = 10;
+    meterContainer.y = 46;
 
-      const meterBg = new PIXI.Sprite(premiumTex);
+    const meterBg = textures.scoreBar
+      ? new PIXI.Sprite(textures.scoreBar)
+      : new PIXI.Graphics();
+    if (textures.scoreBar) {
       meterBg.width = 120;
       meterBg.height = 18;
-      meterContainer.addChild(meterBg);
-
-      meterFill = new PIXI.Graphics();
-      meterFill.x = 2;
-      meterFill.y = 2;
-      meterContainer.addChild(meterFill);
-
-      const meterLabel = new PIXI.Text('0%', { fontFamily: 'Segoe UI, sans-serif', fontSize: 10, fill: '#fff', fontWeight: 'bold' });
-      meterLabel.x = 110;
-      meterLabel.y = 4;
-      meterLabel.name = 'meterPct';
-      meterContainer.addChild(meterLabel);
-
-      playingUI.addChild(meterContainer);
+    } else {
+      meterBg.beginFill(0x333333);
+      meterBg.drawRoundedRect(0, 0, 120, 18, 3);
+      meterBg.endFill();
     }
+    meterContainer.addChild(meterBg);
 
-    hc.addChild(playingUI);
-  }
+    meterFill = new PIXI.Graphics();
+    meterFill.x = 2;
+    meterFill.y = 2;
+    meterContainer.addChild(meterFill);
 
-  function mkMenu(playTex) {
-    menuC = new PIXI.Container();
+    meterPctLabel = new PIXI.Text('0%', { fontFamily: 'Segoe UI, sans-serif', fontSize: 10, fill: '#fff', fontWeight: 'bold' });
+    meterPctLabel.x = 110;
+    meterPctLabel.y = 4;
+    meterContainer.addChild(meterPctLabel);
 
-    const t = new PIXI.Text('BUBBLE\nSHOOTER', { fontFamily: 'Segoe UI, sans-serif', fontSize: 48, fill: '#fff', fontWeight: '900', align: 'center', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 8, dropShadowDistance: 3, letterSpacing: 3 });
-    t.anchor.set(0.5); t.x = W / 2; t.y = H * 0.28;
-    menuC.addChild(t);
-
-    const b = new PIXI.Sprite(playTex);
-    b.anchor.set(0.5);
-    b.x = W / 2;
-    b.y = H * 0.55;
-    const btnSize = Math.min(W * 0.4, 140);
-    b.width = btnSize; b.height = btnSize;
-    b.eventMode = 'static';
-    b.cursor = 'pointer';
-    b.hitArea = new PIXI.Rectangle(
-      -btnSize / 2,
-      -btnSize / 2,
-      btnSize,
-      btnSize
-    );
-    b.on('pointerdown', () => {
-      console.log("Play button clicked successfully!");
-      menuC.visible = false;
-      menuC.interactiveChildren = false;
-      state = 'playing';
-      startGame();
-    });
-    menuC.addChild(b);
-
-    const hint = new PIXI.Text('Tap to Play', { fontFamily: 'Segoe UI, sans-serif', fontSize: 16, fill: '#fff', fontWeight: '300', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 3 });
-    hint.anchor.set(0.5); hint.x = W / 2; hint.y = H * 0.66;
-    menuC.addChild(hint);
-
-    app.stage.addChild(menuC);
-  }
-
-  function mkGameOver() {
-    gameOverUI = new PIXI.Container();
-    const ov = new PIXI.Graphics();
-    ov.beginFill(0x000000, 0.75); ov.drawRect(0, 0, W, H); ov.endFill();
-    gameOverUI.addChild(ov);
-
-    const gt = new PIXI.Text('GAME OVER', { fontFamily: 'Segoe UI, sans-serif', fontSize: 48, fill: '#ff4444', fontWeight: '900', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 8, dropShadowDistance: 3 });
-    gt.anchor.set(0.5); gt.x = W / 2; gt.y = H * 0.30;
-    gameOverUI.addChild(gt);
-
-    const fs = new PIXI.Text('Score: 0', { fontFamily: 'Segoe UI, sans-serif', fontSize: 28, fill: '#ffd700', fontWeight: 'bold' });
-    fs.anchor.set(0.5); fs.x = W / 2; fs.y = H * 0.40; fs.name = 'fs';
-    gameOverUI.addChild(fs);
-
-    const fl = new PIXI.Text('Level 1', { fontFamily: 'Segoe UI, sans-serif', fontSize: 22, fill: '#fff', fontWeight: 'bold' });
-    fl.anchor.set(0.5); fl.x = W / 2; fl.y = H * 0.46; fl.name = 'fl';
-    gameOverUI.addChild(fl);
-
-    const rbg = new PIXI.Graphics();
-    rbg.beginFill(0x4a90d9); rbg.drawRoundedRect(-85, -22, 170, 44, 10); rbg.endFill();
-    rbg.x = W / 2; rbg.y = H * 0.56;
-    rbg.eventMode = 'static'; rbg.cursor = 'pointer';
-    rbg.on('pointerdown', () => restart());
-    gameOverUI.addChild(rbg);
-
-    const rt = new PIXI.Text('RESTART', { fontFamily: 'Segoe UI, sans-serif', fontSize: 20, fill: '#fff', fontWeight: 'bold' });
-    rt.anchor.set(0.5); rt.x = W / 2; rt.y = H * 0.56;
-    gameOverUI.addChild(rt);
-
-    gameOverUI.visible = false;
-    oc.addChild(gameOverUI);
-  }
-
-  function showMenu() {
-    state = 'menu';
-    if (menuC) {
-      if (!menuC.parent) app.stage.addChild(menuC);
-      menuC.visible = true;
-      menuC.interactiveChildren = true;
-    }
-    if (playingUI) playingUI.visible = false;
-    if (gameOverUI) gameOverUI.visible = false;
-    gc.visible = false; tc.visible = false;
-    if (cannonBase) cannonBase.visible = false;
-    if (cannonFlash) cannonFlash.visible = false;
-    if (cannon) cannon.visible = false;
-    proj = null;
-  }
-
-  function startGame() {
-    console.log('startGame() called');
-    state = 'playing';
-    if (menuC) { menuC.visible = false; menuC.interactiveChildren = false; }
-    if (gameOverUI) { gameOverUI.visible = false; }
-    score = 0; level = 1; shotsFired = 0; lastShiftShot = 0;
-    proj = null; parts = []; popAnims = [];
-    pc.removeChildren();
-    calcGrid(); buildGrid(); renderGrid();
-    console.log('grid rendered, count:', gc.children.length);
-    gc.visible = true; tc.visible = true;
-    console.log('gc visible:', gc.visible);
-    if (cannonBase) cannonBase.visible = true;
-    if (cannonFlash) cannonFlash.visible = true;
-    if (cannon) { cannon.visible = true; console.log('cannon visible'); }
-    canFire = true;
-    nextColor = rndNext();
-    updateHUD();
-    showNextBubble();
-    if (playingUI) { playingUI.visible = true; console.log('playingUI visible'); }
-    console.log('startGame() complete');
-  }
-
-  function restart() {
-    if (gameOverUI) gameOverUI.visible = false;
-    startGame();
-  }
-
-  function go() {
-    if (state === 'gameover') return;
-    state = 'gameover';
-    proj = null;
-    canFire = true;
-    if (gameOverUI) {
-      gameOverUI.visible = true;
-      const fs = gameOverUI.getChildByName('fs');
-      if (fs) fs.text = 'Score: ' + score;
-      const fl = gameOverUI.getChildByName('fl');
-      if (fl) fl.text = 'Level ' + level;
-    }
+    hud.addChild(meterContainer);
+    hudContainer.addChild(hud);
   }
 
   function updateHUD() {
     if (scoreTxt) scoreTxt.text = 'Score: ' + score;
     if (levelTxt) levelTxt.text = 'Level ' + level;
-    if (shotsTxt) shotsTxt.text = 'Shots: ' + (shotsFired % C.SHOTS_PER_ROW) + '/' + C.SHOTS_PER_ROW;
+    if (shotsTxt) shotsTxt.text = 'Shots: ' + (shotsFired % CONFIG.SHOTS_PER_ROW) + '/' + CONFIG.SHOTS_PER_ROW;
     if (meterFill) {
-      meterMax = level * 500;
+      const meterMax = level * 500;
       const pct = Math.min(1, score / meterMax);
       meterFill.clear();
       meterFill.beginFill(0x00ff88, 0.85);
       meterFill.drawRect(0, 0, 116 * pct, 14);
       meterFill.endFill();
-      const pctLabel = meterFill.parent.getChildByName('meterPct');
-      if (pctLabel) pctLabel.text = Math.floor(pct * 100) + '%';
+      if (meterPctLabel) meterPctLabel.text = Math.floor(pct * 100) + '%';
     }
   }
 
@@ -546,7 +330,7 @@
     if (!nextTxt) return;
     const tex = texForColor(nextColor);
     if (!tex) return;
-    const sz = hexR * 0.6;
+    const sz = bubbleRadius * 0.6;
     const s = new PIXI.Sprite(tex);
     s.anchor.set(0.5);
     s.width = sz; s.height = sz;
@@ -555,13 +339,13 @@
     nextTxt.text = 'Next:';
     if (nextTxt._preview) { nextTxt._preview.destroy(); }
     nextTxt._preview = s;
-    playingUI.addChild(s);
+    hudContainer.addChild(s);
   }
 
   function updateCannon() {
     if (!cannon || state !== 'playing') return;
-    const dx = px - cannon.x;
-    const dy = py - cannon.y;
+    const dx = pointerX - cannon.x;
+    const dy = pointerY - cannon.y;
     let a = Math.atan2(dy, dx);
     if (a > -0.1) a = -0.1;
     if (a < -Math.PI + 0.1) a = -Math.PI + 0.1;
@@ -570,7 +354,7 @@
   }
 
   function drawTraj() {
-    trajGfx.clear();
+    trajContainer.removeChildren(true);
     if (state !== 'playing' || !cannon) return;
     let ax = cannon.x, ay = cannon.y;
     let adx = Math.cos(cannonAngle), ady = Math.sin(cannonAngle);
@@ -581,7 +365,7 @@
       ax += adx * step; ay += ady * step;
       if (ax < wL) { ax = wL + (wL - ax); adx = -adx; }
       else if (ax > wR) { ax = wR - (ax - wR); adx = -adx; }
-      if (ay < gy - hexR) break;
+      if (ay < gy - bubbleRadius) break;
       const approx = p2g(ax, ay);
       let hit = false;
       for (const n of neighbors(approx.r, approx.c)) {
@@ -596,9 +380,11 @@
     for (let i = 0; i < pts.length; i++) {
       const a = 0.2 + 0.5 * (1 - i / pts.length);
       const r = 1.5 + (1 - i / pts.length) * 1.5;
-      trajGfx.beginFill(0xffffff, a);
-      trajGfx.drawCircle(pts[i].x, pts[i].y, r);
-      trajGfx.endFill();
+      const dot = new PIXI.Graphics();
+      dot.beginFill(0xffffff, a);
+      dot.drawCircle(pts[i].x, pts[i].y, r);
+      dot.endFill();
+      trajContainer.addChild(dot);
     }
   }
 
@@ -610,17 +396,17 @@
     const cyn = cannon.y + Math.sin(a) * 28;
     proj = {
       x: cxn, y: cyn,
-      vx: Math.cos(a) * C.SHOOT_SPEED, vy: Math.sin(a) * C.SHOOT_SPEED,
+      vx: Math.cos(a) * CONFIG.SHOOT_SPEED, vy: Math.sin(a) * CONFIG.SHOOT_SPEED,
       color: nextColor, active: true,
     };
     const tex = texForColor(proj.color);
     if (tex) {
-      const ts = hexR * 2;
+      const ts = bubbleRadius * 2;
       proj.spr = new PIXI.Sprite(tex);
       proj.spr.anchor.set(0.5);
       proj.spr.x = proj.x; proj.spr.y = proj.y;
       proj.spr.width = ts; proj.spr.height = ts;
-      gc.addChild(proj.spr);
+      projContainer.addChild(proj.spr);
     }
 
     if (cannonFlash) {
@@ -638,7 +424,7 @@
     if (!proj) { canFire = true; return; }
     const slot = closestEmpty(proj.x, proj.y);
     if (!slot) {
-      if (proj.spr) { gc.removeChild(proj.spr); proj.spr.destroy(); }
+      if (proj.spr) { projContainer.removeChild(proj.spr); proj.spr.destroy(); }
       proj = null;
       canFire = true;
       return;
@@ -646,24 +432,24 @@
     const pos = sPos(slot.r, slot.c);
     if (proj.spr) {
       proj.spr.x = pos.x; proj.spr.y = pos.y;
-      gc.removeChild(proj.spr);
+      projContainer.removeChild(proj.spr);
       proj.spr.destroy();
     }
     grid[slot.r][slot.c] = proj.color;
     const tex = texForColor(proj.color);
     if (tex) {
-      const ts = hexR * 2;
+      const ts = bubbleRadius * 2;
       const ns = new PIXI.Sprite(tex);
       ns.anchor.set(0.5); ns.x = pos.x; ns.y = pos.y;
       ns.width = ts; ns.height = ts;
-      gc.addChild(ns);
+      gridContainer.addChild(ns);
     }
     proj = null;
     canFire = true;
 
     process(slot.r, slot.c);
 
-    if (shotsFired > 0 && shotsFired % C.SHOTS_PER_ROW === 0 && shotsFired !== lastShiftShot) {
+    if (shotsFired > 0 && shotsFired % CONFIG.SHOTS_PER_ROW === 0 && shotsFired !== lastShiftShot) {
       shiftDown();
       lastShiftShot = shotsFired;
     }
@@ -673,7 +459,7 @@
     const cl = flood(row, col);
     if (cl.length >= 3) {
       const fs = popCl(cl);
-      score += cl.length * C.POP_SCORE + fs;
+      score += cl.length * CONFIG.POP_SCORE + fs;
       updateHUD();
       renderGrid();
       checkGO();
@@ -698,8 +484,8 @@
     }
 
     let clearedAll = true;
-    for (let r = 0; r < C.ROWS; r++)
-      for (let c = 0; c < C.COLS; c++)
+    for (let r = 0; r < CONFIG.ROWS; r++)
+      for (let c = 0; c < CONFIG.COLS; c++)
         if (grid[r][c] !== null) { clearedAll = false; break; }
     if (clearedAll) {
       level++;
@@ -707,39 +493,39 @@
       renderGrid();
     }
 
-    return float.length * C.FLOAT_SCORE;
+    return float.length * CONFIG.FLOAT_SCORE;
   }
 
   function spawnFall(x, y, colr) {
     const tex = texForColor(colr);
     if (!tex) return;
-    const ts = hexR * 2;
+    const ts = bubbleRadius * 2;
     const spr = new PIXI.Sprite(tex);
     spr.anchor.set(0.5); spr.x = x; spr.y = y;
     spr.width = ts; spr.height = ts; spr.alpha = 1;
-    pc.addChild(spr);
+    partContainer.addChild(spr);
     popAnims.push({ spr, ts, vx: (rnd() - 0.5) * 3, vy: 2 + rnd() * 3, rot: (rnd() - 0.5) * 0.1, life: 1, decay: 0.008 + rnd() * 0.008 });
   }
 
   function checkGO() {
-    for (let c = 0; c < C.COLS; c++) {
-      if (grid[C.ROWS - 1][c] !== null) { go(); return; }
+    for (let c = 0; c < CONFIG.COLS; c++) {
+      if (grid[CONFIG.ROWS - 1][c] !== null) { showGameOver(); return; }
     }
   }
 
   function spawnParts(x, y, colr) {
-    const cnt = Math.min(8, C.MAX_PARTICLES - parts.length);
+    const cnt = Math.min(8, CONFIG.MAX_PARTICLES - parts.length);
     if (cnt <= 0) return;
     const col = COLOR_VALS[colr] || 0xffffff;
     for (let i = 0; i < cnt; i++) {
-      const spr = new PIXI.Sprite(pTex);
+      const spr = new PIXI.Sprite(particleTex);
       spr.anchor.set(0.5);
       spr.x = x + (rnd() - 0.5) * 10;
       spr.y = y + (rnd() - 0.5) * 10;
       spr.tint = col;
       spr.scale.set(0.4 + rnd() * 0.4);
       spr.alpha = 1; spr.rotation = rnd() * Math.PI * 2;
-      pc.addChild(spr);
+      partContainer.addChild(spr);
       parts.push({ spr, vx: (rnd() - 0.5) * 8, vy: -3 + rnd() * 5, rot: (rnd() - 0.5) * 0.3, life: 1, decay: 0.015 + rnd() * 0.02 });
     }
   }
@@ -753,7 +539,7 @@
       p.y += p.vy * (dt / steps);
       if (p.x < wL) { p.x = wL + (wL - p.x); p.vx = -p.vx; }
       else if (p.x > wR) { p.x = wR - (p.x - wR); p.vx = -p.vx; }
-      if (p.y < gy - hexR) { snap(); return; }
+      if (p.y < gy - bubbleRadius) { snap(); return; }
       const approx = p2g(p.x, p.y);
       let hit = false;
       for (const n of neighbors(approx.r, approx.c)) {
@@ -775,7 +561,7 @@
       p.life -= p.decay * dt;
       p.spr.alpha = Math.max(0, p.life);
       p.spr.scale.set(p.life * 0.8);
-      if (p.life <= 0) { pc.removeChild(p.spr); p.spr.destroy(); parts.splice(i, 1); }
+      if (p.life <= 0) { partContainer.removeChild(p.spr); p.spr.destroy(); parts.splice(i, 1); }
     }
   }
 
@@ -789,7 +575,7 @@
       a.spr.alpha = Math.max(0, a.life);
       const s = a.life * a.ts;
       a.spr.width = s; a.spr.height = s;
-      if (a.life <= 0) { pc.removeChild(a.spr); a.spr.destroy(); popAnims.splice(i, 1); }
+      if (a.life <= 0) { partContainer.removeChild(a.spr); a.spr.destroy(); popAnims.splice(i, 1); }
     }
   }
 
@@ -800,7 +586,108 @@
     }
   }
 
-  function setupPtr() {}
+  function showGameOver() {
+    if (state === 'gameover') return;
+    state = 'gameover';
+    proj = null;
+    canFire = true;
+
+    const overlay = new PIXI.Container();
+    overlay.name = 'gameoverOverlay';
+
+    const ov = new PIXI.Graphics();
+    ov.beginFill(0x000000, 0.75); ov.drawRect(0, 0, W, H); ov.endFill();
+    overlay.addChild(ov);
+
+    const gt = new PIXI.Text('GAME OVER', { fontFamily: 'Segoe UI, sans-serif', fontSize: 48, fill: '#ff4444', fontWeight: '900', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 8, dropShadowDistance: 3 });
+    gt.anchor.set(0.5); gt.x = W / 2; gt.y = H * 0.30;
+    overlay.addChild(gt);
+
+    const fs = new PIXI.Text('Score: ' + score, { fontFamily: 'Segoe UI, sans-serif', fontSize: 28, fill: '#ffd700', fontWeight: 'bold' });
+    fs.anchor.set(0.5); fs.x = W / 2; fs.y = H * 0.40;
+    overlay.addChild(fs);
+
+    const fl = new PIXI.Text('Level ' + level, { fontFamily: 'Segoe UI, sans-serif', fontSize: 22, fill: '#fff', fontWeight: 'bold' });
+    fl.anchor.set(0.5); fl.x = W / 2; fl.y = H * 0.46;
+    overlay.addChild(fl);
+
+    const rbg = new PIXI.Graphics();
+    rbg.beginFill(0x4a90d9); rbg.drawRoundedRect(-85, -22, 170, 44, 10); rbg.endFill();
+    rbg.x = W / 2; rbg.y = H * 0.56;
+    rbg.eventMode = 'static'; rbg.cursor = 'pointer';
+    rbg.on('pointerdown', () => {
+      gameContainer.removeChild(overlay);
+      overlay.destroy({ children: true });
+      initActualGameplayLoop();
+    });
+    overlay.addChild(rbg);
+
+    const rt = new PIXI.Text('RESTART', { fontFamily: 'Segoe UI, sans-serif', fontSize: 20, fill: '#fff', fontWeight: 'bold' });
+    rt.anchor.set(0.5); rt.x = W / 2; rt.y = H * 0.56;
+    overlay.addChild(rt);
+
+    gameContainer.addChild(overlay);
+  }
+
+  function initActualGameplayLoop() {
+    console.log("GAME INIT TRIGGERED!");
+    state = 'playing';
+    score = 0; level = 1; shotsFired = 0; lastShiftShot = 0;
+    proj = null; parts = []; popAnims = [];
+    gridContainer.removeChildren(true);
+    projContainer.removeChildren(true);
+    partContainer.removeChildren(true);
+    trajContainer.removeChildren(true);
+    hudContainer.removeChildren(true);
+    calcGrid();
+    buildGrid();
+    renderGrid();
+    const premiumTex = bubbleTextures.premiumPlay || bubbleTextures[CONFIG.BUBBLE_COLORS[0].name];
+    setUpCannon(premiumTex);
+    createHUD(bubbleTextures);
+    canFire = true;
+    nextColor = rndNext();
+    showNextBubble();
+    updateHUD();
+  }
+
+  function createMenu(playTex) {
+    menuContainer = new PIXI.Container();
+
+    const title = new PIXI.Text('BUBBLE\nSHOOTER', { fontFamily: 'Segoe UI, sans-serif', fontSize: 48, fill: '#fff', fontWeight: '900', align: 'center', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 8, dropShadowDistance: 3, letterSpacing: 3 });
+    title.anchor.set(0.5); title.x = W / 2; title.y = H * 0.28;
+    menuContainer.addChild(title);
+
+    const playButton = new PIXI.Sprite(playTex);
+    playButton.anchor.set(0.5);
+    playButton.x = W / 2;
+    playButton.y = H * 0.55;
+    const btnSize = Math.min(W * 0.4, 140);
+    playButton.width = btnSize;
+    playButton.height = btnSize;
+    playButton.eventMode = 'static';
+    playButton.cursor = 'pointer';
+    playButton.hitArea = new PIXI.Rectangle(
+      -playButton.texture.orig.width / 2,
+      -playButton.texture.orig.height / 2,
+      playButton.texture.orig.width,
+      playButton.texture.orig.height
+    );
+    playButton.on('pointerdown', (e) => {
+      console.log("GAME INIT TRIGGERED!");
+      menuContainer.visible = false;
+      menuContainer.interactiveChildren = false;
+      gameContainer.visible = true;
+      initActualGameplayLoop();
+    });
+    menuContainer.addChild(playButton);
+
+    const hint = new PIXI.Text('Tap to Play', { fontFamily: 'Segoe UI, sans-serif', fontSize: 16, fill: '#fff', fontWeight: '300', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 3 });
+    hint.anchor.set(0.5); hint.x = W / 2; hint.y = H * 0.66;
+    menuContainer.addChild(hint);
+
+    app.stage.addChild(menuContainer);
+  }
 
   function loop(dt) {
     if (state === 'playing') {
@@ -816,30 +703,110 @@
     }
   }
 
-  async function init() {
-    initPixi();
-    mkLoadScreen();
-    setUpLayers();
-    calcGrid();
-    mkPTex();
-    setupPtr();
-    const tex = await loadAssets();
-    bubbleTex = {};
-    for (const bc of C.BUBBLE_COLORS) bubbleTex[bc.name] = tex[bc.name] || tex[Object.keys(tex)[0]];
-    bubbleTex.special = tex.special || bubbleTex[C.BUBBLE_COLORS[0].name];
-    bubbleTex.air = tex.air || bubbleTex[C.BUBBLE_COLORS[0].name];
-    premiumTex = tex.cannonImg;
-    gameBg = new PIXI.Sprite(tex.background);
-    gameBg.width = app.screen.width;
-    gameBg.height = app.screen.height;
-    app.stage.addChildAt(gameBg, 0);
+  function buildManifest() {
+    const m = { background: 'backgraund.jpg' };
+    for (const bc of CONFIG.BUBBLE_COLORS) m[bc.name] = IMG + bc.file;
+    m.special = IMG + CONFIG.BUBBLE_SPECIAL.file;
+    m.air = IMG + CONFIG.BUBBLE_AIR.file;
+    m.premiumPlay = IMG + CONFIG.UI.premiumPlay;
+    m.backBtn = IMG + CONFIG.UI.back;
+    m.pauseBtn = IMG + CONFIG.UI.pause;
+    m.playBtn = IMG + CONFIG.UI.play;
+    m.scoreBar = IMG + CONFIG.UI.premiumPlay;
+    return m;
+  }
 
-    mkMenu(tex.playBtn);
-    setUpCannon(tex.cannonImg);
-    mkHUD();
-    mkGameOver();
-    if (snd) { snd.destroy(); snd = null; }
-    showMenu();
+  async function loadAllAssets() {
+    const manifest = buildManifest();
+    const keys = Object.keys(manifest);
+    let loaded = 0;
+    const results = {};
+    for (const key of keys) {
+      try {
+        results[key] = await PIXI.Assets.load(manifest[key]);
+      } catch (e) {
+        console.warn('Load fail:', manifest[key], e);
+        const g = new PIXI.Graphics();
+        g.beginFill(COLOR_VALS[loaded % COLOR_VALS.length] || 0xffffff);
+        g.drawCircle(0, 0, 28);
+        g.endFill();
+        results[key] = app.renderer.generateTexture(g);
+        g.destroy();
+      }
+      loaded++;
+      if (loadingText) loadingText.text = 'Loading ' + Math.floor((loaded / keys.length) * 100) + '%';
+    }
+    return results;
+  }
+
+  let loadingText;
+
+  function mkParticleTex() {
+    const g = new PIXI.Graphics();
+    g.beginFill(0xffffff); g.drawCircle(0, 0, 8); g.endFill();
+    particleTex = app.renderer.generateTexture(g);
+    g.destroy();
+  }
+
+  async function init() {
+    app = new PIXI.Application({ width: W, height: H, backgroundColor: 0x0a0a1a, antialias: true, resolution: Math.min(window.devicePixelRatio || 1, 2), autoDensity: true });
+    document.getElementById('game-container').appendChild(app.view);
+    window.addEventListener('resize', resize);
+    resize();
+
+    loadingText = new PIXI.Text('Loading 0%', { fontFamily: 'Segoe UI, sans-serif', fontSize: 32, fill: '#fff', fontWeight: 'bold' });
+    loadingText.anchor.set(0.5); loadingText.x = W / 2; loadingText.y = H / 2;
+    app.stage.addChild(loadingText);
+
+    mkParticleTex();
+
+    const textures = await loadAllAssets();
+    bubbleTextures = {};
+    for (const bc of CONFIG.BUBBLE_COLORS) bubbleTextures[bc.name] = textures[bc.name] || textures[Object.keys(textures)[0]];
+    bubbleTextures.special = textures.special || bubbleTextures[CONFIG.BUBBLE_COLORS[0].name];
+    bubbleTextures.air = textures.air || bubbleTextures[CONFIG.BUBBLE_COLORS[0].name];
+    bubbleTextures.premiumPlay = textures.premiumPlay;
+    bubbleTextures.scoreBar = textures.scoreBar;
+
+    loadingText.destroy();
+    loadingText = null;
+
+    bgSprite = new PIXI.Sprite(textures.background);
+    bgSprite.width = app.screen.width;
+    bgSprite.height = app.screen.height;
+
+    gameContainer = new PIXI.Container();
+    gameContainer.visible = false;
+
+    app.stage.addChild(bgSprite);
+    app.stage.addChild(gameContainer);
+
+    gridContainer = new PIXI.Container();
+    projContainer = new PIXI.Container();
+    partContainer = new PIXI.Container();
+    trajContainer = new PIXI.Container();
+    hudContainer = new PIXI.Container();
+    gameContainer.addChild(gridContainer);
+    gameContainer.addChild(partContainer);
+    gameContainer.addChild(projContainer);
+    gameContainer.addChild(trajContainer);
+    gameContainer.addChild(hudContainer);
+
+    const ptrLayer = new PIXI.Graphics();
+    ptrLayer.beginFill(0x000000, 0.001);
+    ptrLayer.drawRect(0, 0, W, H);
+    ptrLayer.endFill();
+    ptrLayer.eventMode = 'static';
+    ptrLayer.on('pointermove', e => { pointerX = e.global.x; pointerY = e.global.y; });
+    ptrLayer.on('pointerdown', e => {
+      pointerX = e.global.x; pointerY = e.global.y;
+      if (state === 'playing') fire();
+    });
+    gameContainer.addChild(ptrLayer);
+
+    const menuTex = textures.premiumPlay || textures.playBtn;
+    createMenu(menuTex);
+
     app.ticker.add(d => loop(d));
   }
 
