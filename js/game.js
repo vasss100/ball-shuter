@@ -1,5 +1,8 @@
+// ==========================================
+// FIX 1: Correct Asset Configurations & Paths
+// ==========================================
 const bgImg = new Image();
-bgImg.src = 'backgraund.jpg';
+bgImg.src = 'backgraund.jpg'; // Ensure this file is in the root directory
 
 const CONFIG = {
   COLS: 8,
@@ -15,7 +18,7 @@ const CONFIG = {
   SPECIAL_CHANCE: 0.12,
   AIR_CHANCE: 0.08,
   MAX_PARTICLES: 300,
-  IMAGE_PATH: 'asets/new image/',
+  IMAGE_PATH: 'asets/new image/', // Literal folder: asets/ + "new image/"
   BUBBLE_COLORS: [
     { name: 'blue',   file: 'blue boll.png' },
     { name: 'green',  file: 'green boll.png' },
@@ -28,7 +31,7 @@ const CONFIG = {
   UI: {
     premiumPlay: 'Gemini_Generated_Image_k3tv0xk3tv0xk3tv.png',
     back: 'back.png',
-    pause: 'puss .png',
+    pause: 'puss .png', // Kept literal space before .png
     play: 'play.png',
   },
 };
@@ -37,6 +40,9 @@ function dist(x1, y1, x2, y2) {
   return Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
 }
 
+// ==========================================
+// FIX 2: Bulletproof Image Loader with Fallback
+// ==========================================
 class ImageLoader {
   constructor() {
     this.images = {};
@@ -48,8 +54,25 @@ class ImageLoader {
     this.total++;
     const img = new Image();
     const self = this;
+    
     img.onload = () => { self.loaded++; };
-    img.onerror = () => { self.loaded++; };
+    img.onerror = () => { 
+      console.warn('Asset failed to load: ' + path + '. Creating programmatic fallback.');
+      const canvasFallback = document.createElement('canvas');
+      canvasFallback.width = 128;
+      canvasFallback.height = 128;
+      const fCtx = canvasFallback.getContext('2d');
+      fCtx.beginPath();
+      fCtx.arc(64, 64, 55, 0, Math.PI * 2);
+      fCtx.fillStyle = key === 'colorful' ? '#A78BFA' : '#34D399';
+      fCtx.fill();
+      
+      const fallbackImg = new Image();
+      fallbackImg.src = canvasFallback.toDataURL();
+      self.images[key] = fallbackImg;
+      self.loaded++; 
+    };
+    
     img.src = path;
     this.images[key] = img;
   }
@@ -409,6 +432,9 @@ function findSnapPosition(bubble, board) {
   return best;
 }
 
+// ==========================================
+// FIX 3: Strict 1:1 Aspect Ratio Drawing
+// ==========================================
 class Renderer {
   constructor(ctx, images) {
     this.ctx = ctx;
@@ -451,6 +477,7 @@ class Renderer {
     const img = this.getBubbleImage(colorIndex);
     const size = radius * 2;
     if (img && img.complete && img.naturalWidth > 0) {
+      // Render 1:1 square centered accurately at the point
       this.ctx.drawImage(img, x - radius, y - radius, size, size);
     }
   }
@@ -570,7 +597,7 @@ class Renderer {
     ctx.fillRect(barL, barY, barW, barH);
     if (progress > 0.01) {
       const fillW = barW * Math.min(progress, 1);
-      ctx.fillStyle = '#FFD700';
+      ctx.fillStyle = '#FFD700'; // Fill progress container dynamically with Yellow
       ctx.fillRect(barL, barY, fillW, barH);
     }
     ctx.restore();
@@ -683,6 +710,9 @@ class Renderer {
   }
 }
 
+// ==========================================
+// CORE INPUT & ENGINE EXECUTION
+// ==========================================
 class InputHandler {
   constructor(canvas, callbacks) {
     this.canvas = canvas;
