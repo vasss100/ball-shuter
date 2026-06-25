@@ -198,7 +198,8 @@
     m.premiumPlay = IMG + C.UI.premiumPlay;
     m.backBtn = IMG + C.UI.back;
     m.pauseBtn = IMG + C.UI.pause;
-    m.cannonImg = IMG + C.UI.play;
+    m.cannonImg = IMG + C.UI.premiumPlay;
+    m.playBtn = IMG + C.UI.play;
     return m;
   }
 
@@ -764,7 +765,7 @@
     for (const bc of C.BUBBLE_COLORS) bubbleTex[bc.name] = tex[bc.name] || tex[Object.keys(tex)[0]];
     bubbleTex.special = tex.special || bubbleTex[C.BUBBLE_COLORS[0].name];
     bubbleTex.air = tex.air || bubbleTex[C.BUBBLE_COLORS[0].name];
-    mkMenu(tex.background, tex.premiumPlay);
+    mkMenu(tex.background, tex.playBtn);
     setUpCannon(tex.cannonImg);
     mkHUD();
     mkGameOver();
