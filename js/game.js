@@ -388,6 +388,12 @@
     b.width = btnSize; b.height = btnSize;
     b.eventMode = 'static';
     b.cursor = 'pointer';
+    b.hitArea = new PIXI.Rectangle(
+      -b.texture.orig.width / 2,
+      -b.texture.orig.height / 2,
+      b.texture.orig.width,
+      b.texture.orig.height
+    );
     const onPlay = () => {
       console.log("Play Button Clicked!");
       try { startGame(); } catch (e) { console.error('startGame error:', e); }
