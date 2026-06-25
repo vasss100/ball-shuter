@@ -234,11 +234,20 @@
   }
 
   function setUpLayers() {
+    const ptrBg = new PIXI.Graphics();
+    ptrBg.beginFill(0x000000, 0.001);
+    ptrBg.drawRect(0, 0, W, H);
+    ptrBg.endFill();
+    ptrBg.eventMode = 'static';
+    ptrBg.on('pointermove', e => { px = e.global.x; py = e.global.y; });
+    ptrBg.on('pointerdown', e => { px = e.global.x; py = e.global.y; if (state === 'playing') fire(); });
+
     gc = new PIXI.Container();
     pc = new PIXI.Container();
+    tc = new PIXI.Container();
     hc = new PIXI.Container();
     oc = new PIXI.Container();
-    tc = new PIXI.Container();
+    app.stage.addChild(ptrBg);
     app.stage.addChild(gc);
     app.stage.addChild(pc);
     app.stage.addChild(tc);
@@ -373,14 +382,17 @@
     b.anchor.set(0.5);
     b.x = W / 2;
     b.y = H * 0.55;
-    const bs = Math.min(180 / b.width, 180 / b.height);
-    b.scale.set(bs);
+    const sw = Math.max(1, b.width || 1);
+    const sh = Math.max(1, b.height || 1);
+    b.scale.set(Math.min(180 / sw, 180 / sh));
     b.eventMode = 'static';
     b.cursor = 'pointer';
-    b.on('pointerdown', () => {
+    const onPlay = () => {
       console.log("Play Button Clicked!");
-      startGame();
-    });
+      try { startGame(); } catch (e) { console.error('startGame error:', e); }
+    };
+    b.on('pointerdown', onPlay);
+    b.on('click', onPlay);
     menuC.addChild(b);
 
     const hint = new PIXI.Text('Tap to Play', { fontFamily: 'Segoe UI, sans-serif', fontSize: 16, fill: '#fff', fontWeight: '300', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 3 });
@@ -732,12 +744,7 @@
     }
   }
 
-  function setupPtr() {
-    app.stage.eventMode = 'static';
-    app.stage.hitArea = new PIXI.Rectangle(0, 0, W, H);
-    app.stage.on('pointermove', e => { px = e.global.x; py = e.global.y; });
-    app.stage.on('pointerdown', e => { px = e.global.x; py = e.global.y; if (state === 'playing') fire(); });
-  }
+  function setupPtr() {}
 
   function loop(dt) {
     if (state === 'playing') {
