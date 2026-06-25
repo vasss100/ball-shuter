@@ -50,11 +50,13 @@
   let menuC, playingUI, gameOverUI;
   let bubbleTex = {};
   let pTex;
-  let bgSpr;
+  let gameBg;
   let canFire = true;
   let nextColor;
   let popAnims = [];
   let snd = null;
+  let meterFill, meterMax = 1000;
+  let premiumTex;
 
   function rnd() { return Math.random(); }
 
@@ -258,15 +260,18 @@
   }
 
   function calcGrid() {
-    hexW = (W - 30) / (C.COLS + 0.5);
-    hexR = hexW / 2;
-    hexH = hexW * Math.sqrt(3) / 2;
-    gx = 15;
+    const margin = 20;
+    const usableW = W - margin * 2;
+    hexR = usableW / (Math.sqrt(3) * (C.COLS - 0.5) + 2);
+    hexW = Math.sqrt(3) * hexR;
+    hexH = hexR * 1.5;
+    const gridW = hexW * (C.COLS - 1) + 2 * hexR;
+    gx = (W - gridW) / 2;
     gy = 50;
     gTop = gy - hexR;
     gBot = gy + (C.ROWS - 1) * hexH + hexR;
-    wL = 8;
-    wR = W - 8;
+    wL = gx;
+    wR = gx + hexW * (C.COLS - 1) + 2 * hexR;
   }
 
   function buildGrid() {
@@ -366,15 +371,35 @@
     nextTxt.x = W - 85; nextTxt.y = 28;
     playingUI.addChild(nextTxt);
 
+    if (premiumTex) {
+      const meterContainer = new PIXI.Container();
+      meterContainer.x = 10;
+      meterContainer.y = 46;
+
+      const meterBg = new PIXI.Sprite(premiumTex);
+      meterBg.width = 120;
+      meterBg.height = 18;
+      meterContainer.addChild(meterBg);
+
+      meterFill = new PIXI.Graphics();
+      meterFill.x = 2;
+      meterFill.y = 2;
+      meterContainer.addChild(meterFill);
+
+      const meterLabel = new PIXI.Text('0%', { fontFamily: 'Segoe UI, sans-serif', fontSize: 10, fill: '#fff', fontWeight: 'bold' });
+      meterLabel.x = 110;
+      meterLabel.y = 4;
+      meterLabel.name = 'meterPct';
+      meterContainer.addChild(meterLabel);
+
+      playingUI.addChild(meterContainer);
+    }
+
     hc.addChild(playingUI);
   }
 
-  function mkMenu(bgTex, playTex) {
+  function mkMenu(playTex) {
     menuC = new PIXI.Container();
-    bgSpr = new PIXI.Sprite(bgTex);
-    bgSpr.width = app.screen.width;
-    bgSpr.height = app.screen.height;
-    menuC.addChild(bgSpr);
 
     const t = new PIXI.Text('BUBBLE\nSHOOTER', { fontFamily: 'Segoe UI, sans-serif', fontSize: 48, fill: '#fff', fontWeight: '900', align: 'center', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 8, dropShadowDistance: 3, letterSpacing: 3 });
     t.anchor.set(0.5); t.x = W / 2; t.y = H * 0.28;
@@ -389,24 +414,25 @@
     b.eventMode = 'static';
     b.cursor = 'pointer';
     b.hitArea = new PIXI.Rectangle(
-      -b.texture.orig.width / 2,
-      -b.texture.orig.height / 2,
-      b.texture.orig.width,
-      b.texture.orig.height
+      -btnSize / 2,
+      -btnSize / 2,
+      btnSize,
+      btnSize
     );
-    const onPlay = () => {
-      console.log("Play Button Clicked!");
-      try { startGame(); } catch (e) { console.error('startGame error:', e); }
-    };
-    b.on('pointerdown', onPlay);
-    b.on('click', onPlay);
+    b.on('pointerdown', () => {
+      console.log("Play button clicked successfully!");
+      menuC.visible = false;
+      menuC.interactiveChildren = false;
+      state = 'playing';
+      startGame();
+    });
     menuC.addChild(b);
 
     const hint = new PIXI.Text('Tap to Play', { fontFamily: 'Segoe UI, sans-serif', fontSize: 16, fill: '#fff', fontWeight: '300', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 3 });
     hint.anchor.set(0.5); hint.x = W / 2; hint.y = H * 0.66;
     menuC.addChild(hint);
 
-    oc.addChild(menuC);
+    app.stage.addChild(menuC);
   }
 
   function mkGameOver() {
@@ -445,8 +471,9 @@
   function showMenu() {
     state = 'menu';
     if (menuC) {
-      if (!menuC.parent) oc.addChild(menuC);
+      if (!menuC.parent) app.stage.addChild(menuC);
       menuC.visible = true;
+      menuC.interactiveChildren = true;
     }
     if (playingUI) playingUI.visible = false;
     if (gameOverUI) gameOverUI.visible = false;
@@ -459,11 +486,9 @@
 
   function startGame() {
     console.log('startGame() called');
-    if (menuC) { menuC.visible = false; console.log('menuC hidden'); }
-    if (gameOverUI) { gameOverUI.visible = false; console.log('gameOverUI hidden'); }
-    if (menuC && menuC.parent) { menuC.parent.removeChild(menuC); console.log('menuC removed from parent'); }
     state = 'playing';
-    console.log('state = playing');
+    if (menuC) { menuC.visible = false; menuC.interactiveChildren = false; }
+    if (gameOverUI) { gameOverUI.visible = false; }
     score = 0; level = 1; shotsFired = 0; lastShiftShot = 0;
     proj = null; parts = []; popAnims = [];
     pc.removeChildren();
@@ -505,6 +530,16 @@
     if (scoreTxt) scoreTxt.text = 'Score: ' + score;
     if (levelTxt) levelTxt.text = 'Level ' + level;
     if (shotsTxt) shotsTxt.text = 'Shots: ' + (shotsFired % C.SHOTS_PER_ROW) + '/' + C.SHOTS_PER_ROW;
+    if (meterFill) {
+      meterMax = level * 500;
+      const pct = Math.min(1, score / meterMax);
+      meterFill.clear();
+      meterFill.beginFill(0x00ff88, 0.85);
+      meterFill.drawRect(0, 0, 116 * pct, 14);
+      meterFill.endFill();
+      const pctLabel = meterFill.parent.getChildByName('meterPct');
+      if (pctLabel) pctLabel.text = Math.floor(pct * 100) + '%';
+    }
   }
 
   function showNextBubble() {
@@ -793,7 +828,13 @@
     for (const bc of C.BUBBLE_COLORS) bubbleTex[bc.name] = tex[bc.name] || tex[Object.keys(tex)[0]];
     bubbleTex.special = tex.special || bubbleTex[C.BUBBLE_COLORS[0].name];
     bubbleTex.air = tex.air || bubbleTex[C.BUBBLE_COLORS[0].name];
-    mkMenu(tex.background, tex.playBtn);
+    premiumTex = tex.cannonImg;
+    gameBg = new PIXI.Sprite(tex.background);
+    gameBg.width = app.screen.width;
+    gameBg.height = app.screen.height;
+    app.stage.addChildAt(gameBg, 0);
+
+    mkMenu(tex.playBtn);
     setUpCannon(tex.cannonImg);
     mkHUD();
     mkGameOver();
