@@ -369,11 +369,17 @@
     menuC.addChild(t);
 
     const b = new PIXI.Sprite(playTex);
-    b.anchor.set(0.5); b.x = W / 2; b.y = H * 0.55;
+    b.anchor.set(0.5);
+    b.x = W / 2;
+    b.y = H * 0.55;
     const bs = Math.min(180 / b.width, 180 / b.height);
     b.scale.set(bs);
-    b.eventMode = 'static'; b.cursor = 'pointer';
-    b.on('pointerdown', () => startGame());
+    b.eventMode = 'static';
+    b.cursor = 'pointer';
+    b.on('pointerdown', () => {
+      console.log("Play Button Clicked!");
+      startGame();
+    });
     menuC.addChild(b);
 
     const hint = new PIXI.Text('Tap to Play', { fontFamily: 'Segoe UI, sans-serif', fontSize: 16, fill: '#fff', fontWeight: '300', dropShadow: true, dropShadowColor: '#000', dropShadowBlur: 3 });
