@@ -49,22 +49,28 @@ class ImageLoader {
   add(key, path) {
     this.total++;
     const img = new Image();
-    img.onload = () => { this.loaded++; };
+    img.onload = () => { this.loaded++; this.updateUI(); };
     img.onerror = () => { 
-      console.warn('Asset failed to load: ' + path + '. Creating fallback.');
+      console.warn('Asset failed to load: ' + path + '. Creating canvas fallback.');
       const c = document.createElement('canvas');
-      c.width = 128; c.height = 128;
+      c.width = 64; c.height = 64;
       const fc = c.getContext('2d');
-      fc.beginPath(); fc.arc(64, 64, 55, 0, Math.PI * 2);
+      fc.beginPath(); fc.arc(32, 32, 28, 0, Math.PI * 2);
       fc.fillStyle = key === 'colorful' ? '#A78BFA' : '#34D399';
       fc.fill();
       const fb = new Image();
       fb.src = c.toDataURL();
       this.images[key] = fb;
-      this.loaded++; 
+      this.loaded++;
+      this.updateUI();
     };
     img.src = path;
     this.images[key] = img;
+  }
+
+  updateUI() {
+    const txt = document.getElementById('loadingText');
+    if (txt) txt.innerText = `Loading ${Math.round(this.progress * 100)}%`;
   }
 
   addExisting(key, img) {
