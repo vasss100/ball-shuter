@@ -1,9 +1,6 @@
 // ==========================================
-// FIX 1: Correct Asset Configurations & Paths
+// 1. GLOBAL CONFIGURATION & EXACT PATHS
 // ==========================================
-const bgImg = new Image();
-bgImg.src = 'backgraund.jpg'; // Ensure this file is in the root directory
-
 const CONFIG = {
   COLS: 8,
   ROWS: 14,
@@ -18,7 +15,7 @@ const CONFIG = {
   SPECIAL_CHANCE: 0.12,
   AIR_CHANCE: 0.08,
   MAX_PARTICLES: 300,
-  IMAGE_PATH: 'asets/new image/', // Literal folder: asets/ + "new image/"
+  IMAGE_PATH: 'asets/new image/',
   BUBBLE_COLORS: [
     { name: 'blue',   file: 'blue boll.png' },
     { name: 'green',  file: 'green boll.png' },
@@ -31,13 +28,13 @@ const CONFIG = {
   UI: {
     premiumPlay: 'Gemini_Generated_Image_k3tv0xk3tv0xk3tv.png',
     back: 'back.png',
-    pause: 'puss .png', // Kept literal space before .png
+    pause: 'puss .png',
     play: 'play.png',
   },
 };
 
 // ==========================================
-// FIX 2: Bulletproof Image Loader with Fallback
+// 2. IMAGE LOADER WITH PROGRESS & FALLBACK
 // ==========================================
 class ImageLoader {
   constructor() {
@@ -49,14 +46,18 @@ class ImageLoader {
   add(key, path) {
     this.total++;
     const img = new Image();
-    img.onload = () => { this.loaded++; this.updateUI(); };
-    img.onerror = () => { 
-      console.warn('Asset failed to load: ' + path + '. Creating canvas fallback.');
+    img.onload = () => {
+      this.loaded++;
+      this.updateUI();
+    };
+    img.onerror = () => {
+      console.warn('Failed to load: ' + path + '. Using fallback for "' + key + '".');
       const c = document.createElement('canvas');
       c.width = 64; c.height = 64;
       const fc = c.getContext('2d');
+      const hue = (key.length * 60) % 360;
       fc.beginPath(); fc.arc(32, 32, 28, 0, Math.PI * 2);
-      fc.fillStyle = key === 'colorful' ? '#A78BFA' : '#34D399';
+      fc.fillStyle = 'hsl(' + hue + ', 70%, 60%)';
       fc.fill();
       const fb = new Image();
       fb.src = c.toDataURL();
@@ -70,26 +71,18 @@ class ImageLoader {
 
   updateUI() {
     const txt = document.getElementById('loadingText');
-    if (txt) txt.innerText = `Loading ${Math.round(this.progress * 100)}%`;
-  }
-
-  addExisting(key, img) {
-    this.total++;
-    if (img.complete && img.naturalWidth > 0) {
-      this.loaded++;
-    } else {
-      img.onload = () => { this.loaded++; };
-      img.onerror = () => { this.loaded++; };
-    }
-    this.images[key] = img;
+    if (txt) txt.innerText = 'Loading ' + Math.round(this.progress * 100) + '%';
   }
 
   get done() { return this.loaded >= this.total; }
   get progress() { return this.total === 0 ? 1 : this.loaded / this.total; }
 }
 
+// ==========================================
+// 3. PARTICLE EFFECTS
+// ==========================================
 function createExplosion(x, y, colorIndex, bubbleRadius) {
-  const count = 8;
+  const count = 8 + Math.floor(Math.random() * 3);
   const particles = [];
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
@@ -102,7 +95,7 @@ function createExplosion(x, y, colorIndex, bubbleRadius) {
       baseR: bubbleRadius * 0.15,
       color: colorIndex,
       life: 1,
-      decay: 0.015,
+      decay: 0.008 + Math.random() * 0.012,
     });
   }
   return particles;
@@ -112,10 +105,10 @@ function createFlashParticles(x, y, count, bubbleRadius) {
   const particles = [];
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
-    const d2 = Math.random() * bubbleRadius * 0.15;
+    const dist = Math.random() * bubbleRadius * 0.15;
     particles.push({
-      x: x + Math.cos(angle) * d2,
-      y: y + Math.sin(angle) * d2,
+      x: x + Math.cos(angle) * dist,
+      y: y + Math.sin(angle) * dist,
       vx: 0, vy: 0,
       r: bubbleRadius * 0.6 * (0.5 + Math.random() * 0.5),
       baseR: bubbleRadius * 0.6 * (0.5 + Math.random() * 0.5),
@@ -143,6 +136,9 @@ function updateParticles(particles, maxParticles) {
   }
 }
 
+// ==========================================
+// 4. HEXAGONAL BOARD
+// ==========================================
 class Board {
   constructor() {
     this.grid = [];
@@ -250,6 +246,9 @@ class Board {
   }
 }
 
+// ==========================================
+// 5. FLOOD-FILL CONNECTED & FLOATING
+// ==========================================
 function findConnected(board, row, col, minMatch) {
   const target = board.grid[row]?.[col];
   if (target === null || target === undefined) return [];
@@ -264,10 +263,9 @@ function findConnected(board, row, col, minMatch) {
     visited.add(key);
     const val = board.grid[r]?.[c];
     if (val === null || val === undefined) continue;
-    if (!isWildcard && val !== target) continue;
-    if (isWildcard && val === CONFIG.COLOR_SPECIAL) matched.push([r, c]);
-    else if (isWildcard && val !== CONFIG.COLOR_AIR) matched.push([r, c]);
-    else if (!isWildcard) matched.push([r, c]);
+    if (!isWildcard && val !== target && val !== CONFIG.COLOR_SPECIAL) continue;
+    if (val === CONFIG.COLOR_AIR) continue;
+    matched.push([r, c]);
     for (const nb of board.getNeighbors(r, c)) {
       if (!visited.has(nb[0] + ',' + nb[1])) queue.push(nb);
     }
@@ -278,7 +276,7 @@ function findConnected(board, row, col, minMatch) {
     for (const [r, c] of matched) {
       const v = board.grid[r][c];
       if (v === CONFIG.COLOR_SPECIAL) wildcardCount++;
-      else if (v !== null && v !== CONFIG.COLOR_AIR) {
+      else if (v !== null && v !== undefined) {
         colorCounts[v] = (colorCounts[v] || 0) + 1;
       }
     }
@@ -298,16 +296,20 @@ function findConnected(board, row, col, minMatch) {
       }
       return result;
     }
-    return matched.length >= minMatch ? matched : [];
+    return [];
   }
-  return matched.length >= minMatch ? matched : [];
+  const filtered = [];
+  for (const [r, c] of matched) {
+    const v = board.grid[r][c];
+    if (v === target || v === CONFIG.COLOR_SPECIAL) filtered.push([r, c]);
+  }
+  return filtered.length >= minMatch ? filtered : [];
 }
 
 function findFloating(board) {
   const connected = new Set();
   const queue = [];
-  const maxC0 = board.cols;
-  for (let c = 0; c < maxC0; c++) {
+  for (let c = 0; c < board.cols; c++) {
     if (board.grid[0][c] !== null) { queue.push([0, c]); connected.add('0,' + c); }
   }
   while (queue.length > 0) {
@@ -332,6 +334,9 @@ function findFloating(board) {
   return floating;
 }
 
+// ==========================================
+// 6. SHOOTER
+// ==========================================
 class Shooter {
   constructor(x, y, bubbleR) {
     this.x = x;
@@ -382,6 +387,9 @@ class Shooter {
   }
 }
 
+// ==========================================
+// 7. PHYSICS / COLLISION FUNCTIONS
+// ==========================================
 function createFlyingBubble(shooter) {
   const tip = shooter.getTipPosition();
   return {
@@ -428,7 +436,7 @@ function findSnapPosition(bubble, board) {
 }
 
 // ==========================================
-// FIX 3: Strict 1:1 Aspect Ratio Drawing
+// 8. RENDERER — IMAGE-BASED (NO GRADIENTS)
 // ==========================================
 class Renderer {
   constructor(ctx, images) {
@@ -452,6 +460,9 @@ class Renderer {
     this.topH = Math.max(50, Math.min(h * 0.08, 70));
   }
 
+  // ----------------------------------------------------------------
+  // FIXED: drawBackground now renders the backgraund.jpg
+  // ----------------------------------------------------------------
   drawBackground() {
     const bg = this.images['background'];
     if (bg && bg.complete && bg.naturalWidth > 0) {
@@ -468,11 +479,13 @@ class Renderer {
     return null;
   }
 
+  // ----------------------------------------------------------------
+  // FIXED: drawBubble uses preloaded Image (no gradient circles)
+  // ----------------------------------------------------------------
   drawBubble(x, y, radius, colorIndex) {
     const img = this.getBubbleImage(colorIndex);
     const size = radius * 2;
     if (img && img.complete && img.naturalWidth > 0) {
-      // Render 1:1 square centered accurately at the point
       this.ctx.drawImage(img, x - radius, y - radius, size, size);
     }
   }
@@ -490,6 +503,9 @@ class Renderer {
     }
   }
 
+  // ----------------------------------------------------------------
+  // FIXED: Shooter cannon uses 'play' image asset
+  // ----------------------------------------------------------------
   drawShooter(shooter) {
     const tip = shooter.getTipPosition();
     const ctx = this.ctx;
@@ -561,9 +577,9 @@ class Renderer {
   }
 
   drawHUD(score, level, progress) {
-    const ctx = this.ctx;
     const th = this.topH;
     const w = this.w;
+    const ctx = this.ctx;
 
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
@@ -592,7 +608,7 @@ class Renderer {
     ctx.fillRect(barL, barY, barW, barH);
     if (progress > 0.01) {
       const fillW = barW * Math.min(progress, 1);
-      ctx.fillStyle = '#FFD700'; // Fill progress container dynamically with Yellow
+      ctx.fillStyle = '#FFD700';
       ctx.fillRect(barL, barY, fillW, barH);
     }
     ctx.restore();
@@ -619,9 +635,8 @@ class Renderer {
     this.drawBackground();
 
     const w = this.w, h = this.h;
-    const btnSize = Math.min(w * 0.2, h * 0.15);
+    const s = Math.min(w * 0.2, h * 0.15) * 1.6;
     const playY = h * 0.52;
-    const s = btnSize * 1.6;
 
     const playImg = this.images['premiumPlay'];
     if (playImg && playImg.complete && playImg.naturalWidth > 0) {
@@ -706,7 +721,7 @@ class Renderer {
 }
 
 // ==========================================
-// CORE INPUT & ENGINE EXECUTION
+// 9. INPUT HANDLER (TOUCH + MOUSE)
 // ==========================================
 class InputHandler {
   constructor(canvas, callbacks) {
@@ -765,6 +780,9 @@ class InputHandler {
   }
 }
 
+// ==========================================
+// 10. GAME ENGINE — DOMContentLoaded BOOT
+// ==========================================
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('gameCanvas');
   const loadingScreen = document.getElementById('loadingScreen');
@@ -774,6 +792,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const loader = new ImageLoader();
   const bp = CONFIG.IMAGE_PATH;
 
+  loader.add('background', 'backgraund.jpg');
   for (const b of CONFIG.BUBBLE_COLORS) loader.add(b.name, bp + b.file);
   loader.add('colorful', bp + CONFIG.BUBBLE_SPECIAL.file);
   loader.add('air', bp + CONFIG.BUBBLE_AIR.file);
@@ -781,7 +800,6 @@ window.addEventListener('DOMContentLoaded', () => {
   loader.add('back', bp + CONFIG.UI.back);
   loader.add('pause', bp + CONFIG.UI.pause);
   loader.add('play', bp + CONFIG.UI.play);
-  loader.addExisting('background', bgImg);
 
   let game = null;
   let gameState = 'LOADING';
@@ -870,6 +888,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (this.state === 'PLAYING') {
         if (this.renderer.hitTest(this.renderer._pauseBtn, pos.x, pos.y)) { isPaused = true; return; }
         if (this.renderer.hitTest(this.renderer._backBtn, pos.x, pos.y)) { this.state = 'MENU'; isPaused = false; return; }
+        this.aimPos = pos;
         this.handleAim(pos);
         return;
       }
@@ -887,29 +906,28 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     onPointerMove(pos, down) {
-      if (this.state === 'PLAYING' && down && !isPaused) this.handleAim(pos);
+      if (this.state === 'PLAYING' && down && !isPaused) {
+        this.aimPos = pos;
+        this.handleAim(pos);
+      }
     }
 
     onPointerUp() {
-      if (this.state === 'PLAYING' && !isPaused) this.handleShoot();
+      if (this.state === 'PLAYING' && !isPaused && this.shooter && this.shooter.current !== null) {
+        this.flyingBubble = createFlyingBubble(this.shooter);
+        this.shooter.refill();
+        this.shotsSinceRow++;
+      }
     }
 
     handleAim(pos) {
-      if (this.state !== 'PLAYING' || isPaused) return;
-      this.aimPos = pos;
+      if (this.state !== 'PLAYING' || isPaused || !this.shooter) return;
       const dx = pos.x - this.shooter.x;
       const dy = pos.y - this.shooter.y;
       let angle = Math.atan2(dy, dx);
       if (angle > -0.05) angle = -0.05;
       if (angle < -Math.PI + 0.05) angle = -Math.PI + 0.05;
       this.shooter.setAngle(angle);
-    }
-
-    handleShoot() {
-      if (this.state !== 'PLAYING' || isPaused || this.shooter.current === null) return;
-      this.flyingBubble = createFlyingBubble(this.shooter);
-      this.shooter.refill();
-      this.shotsSinceRow++;
     }
 
     update() {
