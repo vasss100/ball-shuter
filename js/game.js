@@ -36,10 +36,6 @@ const CONFIG = {
   },
 };
 
-function dist(x1, y1, x2, y2) {
-  return Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
-}
-
 // ==========================================
 // FIX 2: Bulletproof Image Loader with Fallback
 // ==========================================
@@ -53,38 +49,31 @@ class ImageLoader {
   add(key, path) {
     this.total++;
     const img = new Image();
-    const self = this;
-    
-    img.onload = () => { self.loaded++; };
+    img.onload = () => { this.loaded++; };
     img.onerror = () => { 
-      console.warn('Asset failed to load: ' + path + '. Creating programmatic fallback.');
-      const canvasFallback = document.createElement('canvas');
-      canvasFallback.width = 128;
-      canvasFallback.height = 128;
-      const fCtx = canvasFallback.getContext('2d');
-      fCtx.beginPath();
-      fCtx.arc(64, 64, 55, 0, Math.PI * 2);
-      fCtx.fillStyle = key === 'colorful' ? '#A78BFA' : '#34D399';
-      fCtx.fill();
-      
-      const fallbackImg = new Image();
-      fallbackImg.src = canvasFallback.toDataURL();
-      self.images[key] = fallbackImg;
-      self.loaded++; 
+      console.warn('Asset failed to load: ' + path + '. Creating fallback.');
+      const c = document.createElement('canvas');
+      c.width = 128; c.height = 128;
+      const fc = c.getContext('2d');
+      fc.beginPath(); fc.arc(64, 64, 55, 0, Math.PI * 2);
+      fc.fillStyle = key === 'colorful' ? '#A78BFA' : '#34D399';
+      fc.fill();
+      const fb = new Image();
+      fb.src = c.toDataURL();
+      this.images[key] = fb;
+      this.loaded++; 
     };
-    
     img.src = path;
     this.images[key] = img;
   }
 
   addExisting(key, img) {
     this.total++;
-    const self = this;
     if (img.complete && img.naturalWidth > 0) {
-      self.loaded++;
+      this.loaded++;
     } else {
-      img.onload = () => { self.loaded++; };
-      img.onerror = () => { self.loaded++; };
+      img.onload = () => { this.loaded++; };
+      img.onerror = () => { this.loaded++; };
     }
     this.images[key] = img;
   }
@@ -94,20 +83,20 @@ class ImageLoader {
 }
 
 function createExplosion(x, y, colorIndex, bubbleRadius) {
-  const count = 8 + Math.floor(Math.random() * 3);
+  const count = 8;
   const particles = [];
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 1.5 + Math.random() * 4;
+    const speed = 1.5 + Math.random() * 3;
     particles.push({
       x, y,
       vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed - 1.5,
-      r: bubbleRadius * (0.08 + Math.random() * 0.18),
-      baseR: bubbleRadius * (0.08 + Math.random() * 0.18),
+      vy: Math.sin(angle) * speed - 1,
+      r: bubbleRadius * 0.15,
+      baseR: bubbleRadius * 0.15,
       color: colorIndex,
       life: 1,
-      decay: 0.008 + Math.random() * 0.012,
+      decay: 0.015,
     });
   }
   return particles;
@@ -311,7 +300,7 @@ function findConnected(board, row, col, minMatch) {
 function findFloating(board) {
   const connected = new Set();
   const queue = [];
-  const maxC0 = 0 % 2 === 1 ? board.cols - 1 : board.cols;
+  const maxC0 = board.cols;
   for (let c = 0; c < maxC0; c++) {
     if (board.grid[0][c] !== null) { queue.push([0, c]); connected.add('0,' + c); }
   }
