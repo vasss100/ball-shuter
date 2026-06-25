@@ -444,7 +444,10 @@
 
   function showMenu() {
     state = 'menu';
-    if (menuC) menuC.visible = true;
+    if (menuC) {
+      if (!menuC.parent) oc.addChild(menuC);
+      menuC.visible = true;
+    }
     if (playingUI) playingUI.visible = false;
     if (gameOverUI) gameOverUI.visible = false;
     gc.visible = false; tc.visible = false;
@@ -455,22 +458,28 @@
   }
 
   function startGame() {
+    console.log('startGame() called');
+    if (menuC) { menuC.visible = false; console.log('menuC hidden'); }
+    if (gameOverUI) { gameOverUI.visible = false; console.log('gameOverUI hidden'); }
+    if (menuC && menuC.parent) { menuC.parent.removeChild(menuC); console.log('menuC removed from parent'); }
     state = 'playing';
+    console.log('state = playing');
     score = 0; level = 1; shotsFired = 0; lastShiftShot = 0;
     proj = null; parts = []; popAnims = [];
     pc.removeChildren();
     calcGrid(); buildGrid(); renderGrid();
+    console.log('grid rendered, count:', gc.children.length);
     gc.visible = true; tc.visible = true;
+    console.log('gc visible:', gc.visible);
     if (cannonBase) cannonBase.visible = true;
     if (cannonFlash) cannonFlash.visible = true;
-    if (cannon) cannon.visible = true;
+    if (cannon) { cannon.visible = true; console.log('cannon visible'); }
     canFire = true;
     nextColor = rndNext();
     updateHUD();
     showNextBubble();
-    if (menuC) menuC.visible = false;
-    if (gameOverUI) gameOverUI.visible = false;
-    if (playingUI) playingUI.visible = true;
+    if (playingUI) { playingUI.visible = true; console.log('playingUI visible'); }
+    console.log('startGame() complete');
   }
 
   function restart() {
