@@ -13,8 +13,8 @@
     COLOR_SPECIAL: 6,
     SPECIAL_CHANCE: 0.12,
     AIR_CHANCE: 0.08,
-    SCORE_THRESHOLD: 500,
     BG_PATH: 'asets/new image/backgraund.jpg',
+    PREMIUM_METER: 'asets/new image/Gemini_Generated_Image_k3tv0xk3tv0xk3tv.png',
     FRAME_ALIASES: {
       'blue_bubble': 'asets/new image/blue boll.png',
       'green_bubble': 'asets/new image/green boll.png',
@@ -44,7 +44,7 @@
   let proj = null;
   let parts = [], fallAnims = [];
   let canFire = true, nextColor, pointerX = W / 2, pointerY = H / 2;
-  let scoreTxt, levelTxt, meterFill, meterPctLabel;
+  let scoreTxt, levelTxt, meterFillImg, meterMask, meterPctLabel;
   let gameOverOverlay = null, particleTex;
 
   let bgContainer, gameContainer, menuContainer;
@@ -516,13 +516,25 @@
     meterContainer.x = 10; meterContainer.y = 46;
 
     const meterBg = PIXI.Sprite.from(CFG.FRAME_SCORE_BAR);
-    meterBg.anchor.set(0, 0);
     meterBg.width = 150; meterBg.height = 24;
     meterContainer.addChild(meterBg);
 
-    meterFill = new PIXI.Graphics();
-    meterFill.x = 4; meterFill.y = 4;
-    meterContainer.addChild(meterFill);
+    const fillContainer = new PIXI.Container();
+    fillContainer.x = 4; fillContainer.y = 4;
+
+    meterFillImg = PIXI.Sprite.from(CFG.PREMIUM_METER);
+    meterFillImg.width = 142;
+    meterFillImg.height = 16;
+    fillContainer.addChild(meterFillImg);
+
+    meterMask = new PIXI.Graphics();
+    meterMask.beginFill(0xffffff);
+    meterMask.drawRect(0, 0, 0, 16);
+    meterMask.endFill();
+    fillContainer.addChild(meterMask);
+
+    meterFillImg.mask = meterMask;
+    meterContainer.addChild(fillContainer);
 
     meterPctLabel = new PIXI.Text('0%', {
       fontFamily: 'Segoe UI, sans-serif', fontSize: 11,
@@ -538,13 +550,13 @@
   const updateHUD = () => {
     if (scoreTxt) scoreTxt.text = 'Score: ' + score;
     if (levelTxt) levelTxt.text = 'Level ' + level;
-    if (meterFill) {
-      const maxScore = level * CFG.SCORE_THRESHOLD;
+    if (meterMask && meterFillImg) {
+      const maxScore = level * 500;
       const pct = Math.min(1, score / maxScore);
-      meterFill.clear();
-      meterFill.beginFill(0x00ff88, 0.85);
-      meterFill.drawRect(0, 0, 142 * pct, 16);
-      meterFill.endFill();
+      meterMask.clear();
+      meterMask.beginFill(0xffffff);
+      meterMask.drawRect(0, 0, 142 * pct, 16);
+      meterMask.endFill();
       if (meterPctLabel) meterPctLabel.text = Math.floor(pct * 100) + '%';
     }
   };
@@ -675,15 +687,11 @@
     playBtn.height = btnSize;
     playBtn.eventMode = 'static';
     playBtn.cursor = 'pointer';
-    const btnHit = new PIXI.Graphics();
-    btnHit.beginFill(0xffffff, 0.001);
-    btnHit.drawRect(-btnSize, -btnSize, btnSize * 2, btnSize * 2);
-    btnHit.endFill();
-    btnHit.eventMode = 'static';
-    btnHit.cursor = 'pointer';
-    btnHit.on('pointerdown', () => startGame());
+    playBtn.hitArea = new PIXI.Rectangle(
+      -btnSize / 2, -btnSize / 2, btnSize, btnSize
+    );
+    playBtn.on('pointerdown', () => startGame());
     menuContainer.addChild(playBtn);
-    menuContainer.addChild(btnHit);
 
     const hint = new PIXI.Text('Click or Press "N" to Play', {
       fontFamily: 'Segoe UI, sans-serif', fontSize: 16,
@@ -799,9 +807,8 @@
         })
       );
     }
-    loadPromises.push(
-      PIXI.Assets.load(CFG.BG_PATH).catch(() => {})
-    );
+    loadPromises.push(PIXI.Assets.load(CFG.BG_PATH).catch(() => {}));
+    loadPromises.push(PIXI.Assets.load(CFG.PREMIUM_METER).catch(() => {}));
 
     await Promise.allSettled(loadPromises);
 
@@ -822,8 +829,8 @@
 
     try {
       const bg = PIXI.Sprite.from(CFG.BG_PATH);
-      bg.width = app.screen.width;
-      bg.height = app.screen.height;
+      bg.width = W;
+      bg.height = H;
       bgContainer.addChild(bg);
     } catch (e) {
       const fallbackBg = new PIXI.Graphics();
