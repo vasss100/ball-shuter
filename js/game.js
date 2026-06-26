@@ -50,6 +50,14 @@
   let bgContainer, gameContainer, menuContainer;
   let gridContainer, projContainer, partContainer, trajContainer, hudContainer;
 
+  const clearContainer = (c) => {
+    while (c.children.length > 0) {
+      const child = c.children[0];
+      c.removeChild(child);
+      child.destroy();
+    }
+  };
+
   const rnd = () => Math.random();
 
   const rndBubble = () => {
@@ -181,7 +189,7 @@
   };
 
   const renderGrid = () => {
-    gridContainer.removeChildren();
+    clearContainer(gridContainer);
     const ts = bubbleRadius * 2;
     for (let r = 0; r < CFG.ROWS; r++) {
       for (let c = 0; c < CFG.COLS; c++) {
@@ -189,11 +197,13 @@
         if (v == null) continue;
         const frame = frameForColor(v);
         if (!frame) continue;
-        const pos = sPos(r, c);
+        const p = sPos(r, c);
         const spr = PIXI.Sprite.from(frame);
         spr.anchor.set(0.5);
-        spr.x = pos.x; spr.y = pos.y;
-        spr.width = ts; spr.height = ts;
+        spr.x = p.x;
+        spr.y = p.y;
+        spr.width = ts;
+        spr.height = ts;
         gridContainer.addChild(spr);
       }
     }
@@ -244,7 +254,7 @@
   };
 
   const drawTraj = () => {
-    trajContainer.removeChildren();
+    clearContainer(trajContainer);
     if (state !== 'playing' || !cannon) return;
     let ax = cannon.x, ay = cannon.y;
     let adx = Math.cos(cannonAngle), ady = Math.sin(cannonAngle);
@@ -650,11 +660,11 @@
     state = 'playing';
     score = 0; level = 1; shotsFired = 0; lastShiftShot = 0;
     proj = null; parts = []; fallAnims = [];
-    gridContainer.removeChildren();
-    projContainer.removeChildren();
-    partContainer.removeChildren();
-    trajContainer.removeChildren();
-    hudContainer.removeChildren();
+    clearContainer(gridContainer);
+    clearContainer(projContainer);
+    clearContainer(partContainer);
+    clearContainer(trajContainer);
+    clearContainer(hudContainer);
 
     calcGrid();
     buildGrid();
