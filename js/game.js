@@ -189,7 +189,13 @@
   };
 
   const renderGrid = () => {
-    clearContainer(gridContainer);
+    if (gridContainer && gridContainer.children) {
+      while (gridContainer.children.length > 0) {
+        const child = gridContainer.children[0];
+        gridContainer.removeChild(child);
+        child.destroy();
+      }
+    }
     const ts = bubbleRadius * 2;
     for (let r = 0; r < CFG.ROWS; r++) {
       for (let c = 0; c < CFG.COLS; c++) {
